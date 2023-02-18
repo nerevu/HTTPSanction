@@ -1,0 +1,14 @@
+{
+  "prefix": "cloze",
+  "auths": [
+    {
+      "authType": "custom",
+      "apiBaseURL": "https://api.cloze.com/v1",
+      "documentationURL": "https://api.cloze.com/api-docs",
+      "params": {
+        "user": "$CLOZE_EMAIL",
+        "api_key": "$CLOZE_API_KEY"
+      }
+    }
+  ]
+}

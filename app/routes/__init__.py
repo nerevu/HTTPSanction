@@ -9,7 +9,7 @@ import pygogo as gogo
 from attr import dataclass, field
 from faker import Faker
 from flask import current_app as app, request
-from flask.views import MethodView, View
+from flask.views import MethodView
 
 from app import cache
 from app.helpers import flask_formatter as formatter

@@ -8,6 +8,7 @@
     "name": {
       "description": "Unique identifier for the route",
       "type": "string",
+      "uniqueItems": true,
       "pattern": "^[a-z]+(-[a-z]+)*$",
       "default": "",
       "examples": [

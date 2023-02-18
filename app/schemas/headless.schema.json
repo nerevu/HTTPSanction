@@ -43,11 +43,6 @@
       "examples": [
         "Enter 2fa code"
       ]
-    },
-    "wait": {
-      "description": "Amount of seconds to wait before executing action",
-      "type": "integer",
-      "default": 0
     }
   },
   "required": [

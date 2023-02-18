@@ -131,7 +131,7 @@ class APIConfig:
     method_view_route_params: List[MethodViewRouteParams]
     """Unique identifier for the API"""
     name: str
-    """Exposed resource provider prefixes"""
+    """Exposed provider prefixes"""
     provider_names: Optional[List[str]]
 
     @staticmethod

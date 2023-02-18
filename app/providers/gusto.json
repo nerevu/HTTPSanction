@@ -1,0 +1,20 @@
+{
+  "prefix": "gusto",
+  "auths": [
+    {
+      "authType": "oauth2",
+      "apiBaseURL": "https://api.gusto-demo.com/v1",
+      "documentationURL": "https://docs.gusto.com/docs/api",
+      "authorizationBaseURL": "https://api.gusto-demo.com/oauth/authorize",
+      "tokenURL": "https://api.gusto-demo.com/oauth/token",
+      "clientId": "$GUSTO_CLIENT_ID",
+      "clientSecret": "$GUSTO_SECRET",
+      "scope": [
+        "public",
+        "payrolls.read",
+        "employees.read",
+        "companies.read"
+      ]
+    }
+  ]
+}

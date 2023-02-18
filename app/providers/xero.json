@@ -1,161 +1,16 @@
 {
   "prefix": "xero",
-  "resources": [
-    {
-      "resourceId": "connections",
-      "resource": "connections",
-      "authId": "simple"
-    },
-    {
-      "resourceId": "projects",
-      "resource": "projects",
-      "authId": "project",
-      "fields": [
-        "projectId",
-        "name",
-        "status"
-      ],
-      "idField": "projectId",
-      "subkey": "items",
-      "methods": [
-        "GET",
-        "POST"
-      ]
-    },
-    {
-      "resourceId": "users",
-      "resource": "projectsusers",
-      "authId": "project",
-      "fields": [
-        "userId",
-        "name"
-      ],
-      "idField": "userId",
-      "subkey": "items"
-    },
-    {
-      "resourceId": "contacts",
-      "resource": "Contacts",
-      "authId": "api",
-      "fields": [
-        "ContactID",
-        "Name",
-        "FirstName",
-        "LastName"
-      ],
-      "idField": "ContactID",
-      "subkey": "Contacts"
-    },
-    {
-      "resourceId": "payments",
-      "resource": "Payments",
-      "authId": "api",
-      "idField": "PaymentID",
-      "subkey": "Payments"
-    },
-    {
-      "resourceId": "invoices",
-      "resource": "Invoices",
-      "authId": "api",
-      "idField": "InvoiceID",
-      "subkey": "Invoices",
-      "nameField": "InvoiceNumber",
-      "methods": [
-        "GET",
-        "POST"
-      ]
-    },
-    {
-      "resourceId": "online_invoices",
-      "resource": "Invoices",
-      "subresource": "OnlineInvoice",
-      "authId": "api",
-      "idField": "OnlineInvoiceUrl",
-      "subkey": "OnlineInvoices"
-    },
-    {
-      "resourceId": "linked_transactions",
-      "resource": "LinkedTransactions",
-      "authId": "api",
-      "idField": "LinkedTransactionID",
-      "subkey": "LinkedTransactions",
-      "nameField": "LinkedTransactionID"
-    },
-    {
-      "resourceId": "inventory",
-      "resource": "Items",
-      "authId": "api",
-      "fields": [
-        "ItemID",
-        "Name",
-        "Code",
-        "Description",
-        "SalesDetails"
-      ],
-      "idField": "ItemID",
-      "subkey": "Items",
-      "nameField": "Name"
-    },
-    {
-      "resourceId": "project_tasks",
-      "resource": "projects",
-      "subresource": "tasks",
-      "authId": "project",
-      "fields": [
-        "taskId",
-        "name",
-        "status",
-        "rate.value",
-        "projectId"
-      ],
-      "idField": "taskId",
-      "subkey": "items",
-      "methods": [
-        "GET",
-        "POST"
-      ]
-    },
-    {
-      "resourceId": "project_time",
-      "resource": "projects",
-      "subresource": "time",
-      "authId": "project",
-      "attrs": {
-        "event_pos": 0,
-        "event_id": ""
-      },
-      "idField": "timeEntryId",
-      "subkey": "items",
-      "methods": [
-        "GET",
-        "POST"
-      ]
-    }
-  ],
-  "statusResource": "connections",
   "auths": [
     {
-      "authId": "base",
-      "documentationURL": "https://developer.xero.com/documentation/getting-started-guide",
       "authType": "oauth2",
+      "apiBaseURL": "https://api.xero.com",
+      "documentationURL": "https://developer.xero.com/documentation/getting-started-guide",
       "authorizationBaseURL": "https://login.xero.com/identity/connect/authorize",
       "tokenURL": "https://identity.xero.com/connect/token",
-      "refreshURL": "https://identity.xero.com/connect/token",
-      "redirectURI": "/xero-callback",
-      "tenantPath": "result[0].tenantId",
-      "headers": {
-        "ALL": {
-          "Xero-tenant-id": "{tenant_id}"
-        }
-      },
       "clientId": "$XERO_CLIENT_ID",
       "clientSecret": "$XERO_SECRET",
       "username": "$XERO_USERNAME",
       "password": "$XERO_PASSWORD",
-      "paramMap": {
-        "start": "dateAfterUtc",
-        "end": "dateBeforeUtc"
-      },
       "scope": [
         "projects",
         "offline_access",
@@ -200,40 +55,14 @@
         {
           "selector": "#approveButton",
           "description": "xero allow access",
-          "action": "click",
-          "wait": 5
+          "action": "click"
         },
         {
           "selector": "#approveButton",
           "description": "xero select org",
-          "action": "click",
-          "wait": 5
+          "action": "click"
         }
       ]
-    },
-    {
-      "authId": "simple",
-      "parent": "base",
-      "isDefault": true,
-      "apiBaseURL": "https://api.xero.com"
-    },
-    {
-      "authId": "api",
-      "parent": "base",
-      "apiBaseURL": "https://api.xero.com/api.xro/2.0"
-    },
-    {
-      "authId": "project",
-      "parent": "base",
-      "apiBaseURL": "https://api.xero.com/projects.xro/2.0"
     }
-  ],
-  "webhook": {
-    "documentationURL": "https://developer.xero.com/documentation/guides/webhooks/overview",
-    "signatureHeader": "x-xero-signature",
-    "webhookSecret": "$XERO_WEBHOOK_SECRET",
-    "digest": "sha256",
-    "b64Encode": true,
-    "payloadKey": "events"
-  }
+  ]
 }

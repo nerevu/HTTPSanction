@@ -15,11 +15,9 @@ from tempfile import NamedTemporaryFile
 from typing import Union
 from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse
 
-import boto3
 import pygogo as gogo
 import requests
 
-from botocore.exceptions import ProfileNotFound
 from flask import (
     after_this_request,
     current_app as app,
@@ -30,8 +28,6 @@ from flask import (
     session,
     url_for,
 )
-from google.auth.transport.requests import Request
-from google.oauth2.service_account import Credentials
 from oauthlib.oauth2 import TokenExpiredError
 from requests.auth import AuthBase
 from requests_oauthlib import OAuth1Session, OAuth2Session
@@ -90,7 +86,6 @@ class OAuth2BaseClient(BaseClient):
     refresh_token: str = ""
     state: str = ""
     realm_id: str = ""
-    tenant_id: str = ""
     expires_at: dt = field(default=dt.now(timezone.utc), init=False)
     expires_in: int = field(default=0, init=False)
     oauth_version: int = field(default=2, init=False)
@@ -167,7 +162,6 @@ class OAuth2BaseClient(BaseClient):
         cache.set(f"{self.prefix}_created_at", self.created_at)
         cache.set(f"{self.prefix}_expires_at", self.expires_at)
         cache.set(f"{self.prefix}_realm_id", self.realm_id)
-        cache.set(f"{self.prefix}_tenant_id", self.tenant_id)
 
     def restore(self):
         logger.debug(f"restoring {self}")
@@ -187,7 +181,6 @@ class OAuth2BaseClient(BaseClient):
         self.expires_at = cache.get(f"{self.prefix}_expires_at") or def_expires_at
         self.expires_in = (self.expires_at - dt.now(timezone.utc)).total_seconds()
         self.realm_id = cache.get(f"{self.prefix}_realm_id")
-        self.tenant_id = cache.get(f"{self.prefix}_tenant_id")
 
 
 @dataclass
@@ -573,167 +566,10 @@ class BearerAuthClient(AuthClient):
         self.auth = BearerAuth(self.token)
 
 
-@dataclass
-class BotoAuthClient(AuthClient):
-    profile_name: str = ""
-    aws_access_key_id: str = ""
-    aws_secret_access_key: str = ""
-    region_name: str = ""
-    _session: boto3.Session = field(init=False)
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.auth_type = "boto"
-        self._init_credentials()
-
-    @property
-    def kwargs(self):
-        return {
-            "aws_access_key_id": self.aws_access_key_id,
-            "aws_secret_access_key": self.aws_secret_access_key,
-            "region_name": self.region_name,
-        }
-
-    @property
-    def session(self):
-        if not self._session:
-            try:
-                _session = boto3.Session(profile_name=self.profile_name)
-            except ProfileNotFound:
-                _session = boto3.Session(**self.kwargs)
-                logger.debug("Loaded session from config.")
-            else:
-                logger.debug(f"Loaded session from profile {self.profile_name}.")
-
-            self._session = _session
-
-        return self._session
-
-    def _init_credentials(self):
-        self.session
-
-
-@dataclass
-class ServiceAuthClient(OAuth2BaseClient):
-    keyfile_path: str = ""
-    private_key: str = field(init=False)
-    auth_provider_x509_cert_url: str = field(init=False)
-    client_x509_cert_url: str = field(init=False)
-    project_id: str = field(init=False)
-    client_email: str = field(init=False)
-    token_uri: str = field(init=False)
-    token_type: str = field(default="service", init=False)
-    _info: dict = field(init=False)
-    _credentials: Credentials = field(init=False)
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.auth_type = "service"
-        self.restore()
-        self._init_credentials()
-
-    def save(self):
-        super().save()
-        cache.set(f"{self.prefix}_scopes", self.credentials.scopes)
-        cache.set(f"{self.prefix}_project_id", self.credentials.project_id)
-        cache.set(f"{self.prefix}_client_email", self.credentials.service_account_email)
-        cache.set(f"{self.prefix}_token_uri", self.credentials._token_uri)
-        cache.set(f"{self.prefix}_private_key", self.private_key)
-
-    def restore(self):
-        super().restore()
-        self.project_id = cache.get(f"{self.prefix}_project_id")
-        self.client_email = cache.get(f"{self.prefix}_client_email")
-        self.token_uri = cache.get(f"{self.prefix}_token_uri")
-        self.private_key = cache.get(f"{self.prefix}_private_key")
-        self.scope = cache.get(f"{self.prefix}_scopes") or self.scope
-
-    def _init_credentials(self):
-        if not self.credentials:
-            p = Path(self.keyfile_path)
-            logger.debug(f"Loading {self.prefix} keyfile from {p}...")
-
-            with p.open() as f:
-                self._info = load(f)
-                self.private_key = self._info["private_key"]
-
-        if self.expired:
-            logger.warning(f"{self.prefix} token expired. Attempting to renew...")
-            self.renew_token("TokenExpiredError")
-        elif self.verified:
-            logger.debug(f"{self.prefix} successfully authenticated!")
-        else:
-            logger.warning(f"{self.prefix} not authorized. Attempting to renew...")
-            self.renew_token("init")
-
-        if self.error:
-            logger.error(self.error)
-
-    @property
-    def info(self):
-        if not self._info:
-            self._info = {
-                "private_key": self.private_key,
-                "project_id": self.project_id,
-                "client_email": self.client_email,
-                "token_uri": self.token_uri,
-            }
-
-        return self._info
-
-    @property
-    def credentials(self):
-        if not self._credentials:
-            try:
-                self._credentials = Credentials.from_service_account_info(
-                    self.info, scopes=self.scope
-                )
-            except Exception as e:
-                logger.warning(f"{self.prefix} info invalid: {e}.")
-
-        return self._credentials
-
-    @property
-    def verified(self):
-        return self.credentials.valid
-
-    @property
-    def _token(self):
-        return {
-            "access_token": self.credentials.token,
-            "expires_at": self.credentials.expiry.replace(tzinfo=timezone.utc),
-        }
-
-    def fetch_token(self):
-        self.token = self._token
-        return self._token
-
-    def renew_token(self, source):
-        logger.debug("Renewing {self} token from {source} using credentials refresh…")
-        self.credentials.refresh(Request())
-
-        if self.verified:
-            self.error = ""
-            self.token = self._token
-        else:
-            logger.debug("Failed to renew, re-authenticating…")
-            self.fetch_token()
-
-            if self.verified:
-                logger.debug(f"Successfully renewed {self}!")
-                self.token = self._token
-            else:
-                self.error = f"Failed to renew {self}: Please re-authenticate!"
-
-        return self
-
-
 AVAILABLE_AUTHS = {
     "oauth1": OAuth1Client,
     "oauth2": OAuth2Client,
-    "service": ServiceAuthClient,
     "bearer": BearerAuthClient,
-    "boto": BotoAuthClient,
     "basic": BasicAuthClient,
     "custom": AuthClient,
 }
@@ -741,9 +577,7 @@ AVAILABLE_AUTHS = {
 AuthClientTypes = Union[
     OAuth1Client,
     OAuth2Client,
-    ServiceAuthClient,
     BearerAuthClient,
-    BotoAuthClient,
     BasicAuthClient,
     AuthClient,
 ]
@@ -758,10 +592,10 @@ def get_auth_client(
     **kwargs,
 ) -> AuthClientTypes:
     logger.setLevel(LOG_LEVELS[verbose])
-    auth_client_name = f"{prefix}_{auth.auth_id}_auth_client"
+    auth_type = auth.auth_type
+    auth_client_name = f"{prefix}_{auth_type}_auth_client"
 
     if auth_client_name not in g:
-        auth_type = auth.auth_type
         MyAuthClient = AVAILABLE_AUTHS[auth_type]
         redirect_uri = auth.redirect_uri or ""
 
@@ -1064,7 +898,7 @@ def get_redirect_url(
     prefix: str, auth: Authentication = None, **kwargs
 ) -> tuple[str, AuthClientTypes]:
 
-    """Step 3: Retrieving an access token.
+    """Retrieve an access token.
 
     The user has been redirected back from the provider to your registered
     callback URL. With this redirection comes an authorization code included

@@ -17,7 +17,6 @@
 import logging
 
 from functools import partial
-from logging import DEBUG, WARNING
 from os import getenv, path as p
 from pathlib import Path
 from pickle import DEFAULT_PROTOCOL
