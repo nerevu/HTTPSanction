@@ -38,6 +38,7 @@ logger.propagate = False
 
 ENCODING = "utf-8"
 EPOCH = dt(*gmtime(0)[:6])
+# https://stackoverflow.com/a/1176023/408556
 PASCAL_PATTERN = re.compile(r"(?<!^)(?=[A-Z])")
 
 
