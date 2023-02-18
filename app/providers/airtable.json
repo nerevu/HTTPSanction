@@ -1,0 +1,14 @@
+{
+  "prefix": "airtable",
+  "auths": [
+    {
+      "authType": "bearer",
+      "apiBaseURL": "https://api.airtable.com/v0/{baseId}",
+      "documentationURL": "https://airtable.com/{baseId}/api/docs",
+      "attrs": {
+        "token": "$AIRTABLE_API_KEY",
+        "baseId": "$AIRTABLE_BASE_ID"
+      }
+    }
+  ]
+}

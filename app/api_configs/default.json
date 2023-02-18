@@ -16,6 +16,19 @@
       ]
     }
   ],
+  "authRouteParams": [
+    {
+      "name": "callback",
+      "module": "app.routes.auth",
+      "className": "Callback"
+    },
+    {
+      "name": "auth",
+      "module": "app.routes.auth",
+      "className": "Auth",
+      "methods": ["GET", "PATCH"]
+    }
+  ],
   "blueprintRouteParams": [
     {
       "name": "ipsum",
@@ -24,6 +37,10 @@
     }
   ],
   "providerNames": [
+    "airtable",
+    "cloze",
+    "gusto",
+    "timely",
     "xero"
   ]
 }

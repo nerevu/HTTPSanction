@@ -9,6 +9,7 @@
     "name": {
       "description": "Unique identifier for the API",
       "type": "string",
+      "uniqueItems": true,
       "pattern": "^[a-z]+(-[a-z]+)*$",
       "default": "",
       "examples": [
@@ -52,8 +53,18 @@
         "$ref": "https://raw.githubusercontent.com/nerevu/rorschach/master/app/schemas/blueprint-route-params.schema.json"
       }
     },
+    "authRouteParams": {
+      "description": "Exposed Auth params per provider",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "default": {},
+        "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/auth-route-params.schema.json"
+      }
+    },
     "providerNames": {
-      "description": "Exposed resource provider prefixes",
+      "description": "Exposed provider prefixes",
       "type": "array",
       "default": [],
       "items": {
@@ -62,9 +73,8 @@
         "default": "",
         "examples": [
           "xero",
-          "quickbooks",
-          "aws",
-          "google-analytics"
+          "airtable",
+          "cloze"
         ]
       }
     }

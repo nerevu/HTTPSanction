@@ -56,29 +56,19 @@
       ]
     },
     "redirectURI": {
-      "description": "API OAuth flow callback entry point",
+      "description": "API OAuth flow callback entry point (defaults to `$PROVIDER_PREFIX-callback`",
       "type": "string",
       "default": "",
       "examples": [
         "/xero-callback"
       ]
     },
-    "authId": {
-      "description": "Unique identifier for the API resource",
-      "type": "string",
-      "pattern": "^[a-z]+(_[a-z]+)*$",
-      "default": "",
-      "examples": [
-        "status",
-        "users",
-        "project_tasks"
-      ]
-    },
     "authType": {
-      "description": "The API authentication type",
+      "description": "Unique API authentication type",
       "type": "string",
       "default": "oauth2",
-      "pattern": "oauth1|oauth2|service|bearer|boto|basic|custom"
+      "uniqueItems": true,
+      "pattern": "oauth1|oauth2|service|bearer|basic|custom"
     },
     "clientId": {
       "description": "The API client ID",
@@ -94,14 +84,6 @@
       "default": "",
       "examples": [
         "$SECRET"
-      ]
-    },
-    "tenantPath": {
-      "description": "Path to the tenant ID",
-      "type": "string",
-      "default": "",
-      "examples": [
-        "result[0].tenantId"
       ]
     },
     "username": {
@@ -143,11 +125,6 @@
       "default": {},
       "$ref": "attribute.schema.json"
     },
-    "ridLast": {
-      "description": "Place the resource ID *after* the subresource instead of before",
-      "type": "boolean",
-      "default": false
-    },
     "headless": {
       "description": "Allow headless authentication",
       "type": "boolean",
@@ -157,14 +134,6 @@
       "description": "Enable debug mode",
       "type": "boolean",
       "default": false
-    },
-    "apiExt": {
-      "description": "Extension to place  at the end of API urls",
-      "type": "string",
-      "default": "",
-      "examples": [
-        "json"
-      ]
     },
     "headers": {
       "description": "HTTP headers to include with requests (case sensitive)",
@@ -210,93 +179,6 @@
         }
       }
     },
-    "methodMap": {
-      "description": "Maps standard HTTP methods to API specific methods (case sensitive)",
-      "type": "object",
-      "default": {},
-      "additionalProperties": false,
-      "properties": {
-        "GET": {
-          "description": "Map GET requests",
-          "type": "string",
-          "default": "GET",
-          "examples": [
-            "POST"
-          ]
-        },
-        "POST": {
-          "description": "Map POST requests",
-          "type": "string",
-          "default": "POST",
-          "examples": [
-            "GET"
-          ]
-        },
-        "PUT": {
-          "description": "Map PUT requests",
-          "type": "string",
-          "default": "PUT",
-          "examples": [
-            "POST"
-          ]
-        },
-        "PATCH": {
-          "description": "Map PATCH requests",
-          "type": "string",
-          "default": "PATCH",
-          "examples": [
-            "POST"
-          ]
-        },
-        "DELETE": {
-          "description": "Map DELETE requests",
-          "type": "string",
-          "default": "DELETE",
-          "examples": [
-            "POST"
-          ]
-        }
-      }
-    },
-    "paramMap": {
-      "description": "Maps standard parameters to API specific parameters",
-      "type": "object",
-      "default": {},
-      "properties": {
-        "id": {
-          "description": "",
-          "type": "string",
-          "default": "",
-          "examples": [
-            ""
-          ]
-        },
-        "fields": {
-          "description": "",
-          "type": "string",
-          "default": "",
-          "examples": [
-            ""
-          ]
-        },
-        "start": {
-          "description": "The start date",
-          "type": "string",
-          "default": "",
-          "examples": [
-            "dateAfterUtc"
-          ]
-        },
-        "end": {
-          "description": "The end date",
-          "type": "string",
-          "default": "",
-          "examples": [
-            "dateBeforeUtc"
-          ]
-        }
-      }
-    },
     "headlessElements": {
       "description": "Web element used to navigate a provider's application login page",
       "type": "array",
@@ -320,6 +202,6 @@
     }
   },
   "required": [
-    "authId"
+    "authType"
   ]
 }

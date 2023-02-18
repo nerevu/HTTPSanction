@@ -88,10 +88,6 @@ class AttrClass:
     """description"""
 
     conditional: Optional[Conditional]
-    """Function to apply to the Status resource json response"""
-    func: Optional[str]
-    """Path to the attribute relative to the Status resource json response"""
-    path: Optional[str]
 
     @staticmethod
     def from_dict(obj: Any) -> "AttrClass":
@@ -99,8 +95,6 @@ class AttrClass:
         conditional = from_union(
             [Conditional.from_dict, from_none], obj.get("conditional")
         )
-        func = from_union([from_none, from_str], obj.get("func"))
-        path = from_union([from_none, from_str], obj.get("path"))
         return AttrClass(conditional, func, path)
 
     def to_dict(self) -> dict:
@@ -108,8 +102,6 @@ class AttrClass:
         result["conditional"] = from_union(
             [lambda x: to_class(Conditional, x), from_none], self.conditional
         )
-        result["func"] = from_union([from_none, from_str], self.func)
-        result["path"] = from_union([from_none, from_str], self.path)
         return result
 
 
@@ -427,8 +419,6 @@ class ParamMap:
 class Authentication:
     """API authentication"""
 
-    """Unique identifier for the API resource"""
-    auth_id: str
     """Base API URL"""
     api_base_url: Optional[str]
     """Extension to place  at the end of API urls"""
@@ -467,12 +457,8 @@ class Authentication:
     redirect_uri: Optional[str]
     """API OAuth token refresh URL (defaults to the `tokenURL`)"""
     refresh_url: Optional[str]
-    """Place the resource ID *after* the subresource instead of before"""
-    rid_last: Optional[bool]
     """The API permissions scope"""
     scope: Optional[List[str]]
-    """Path to the tenant ID"""
-    tenant_path: Optional[str]
     """API OAuth token URL"""
     token_url: Optional[str]
     """The application username"""
@@ -481,7 +467,6 @@ class Authentication:
     @staticmethod
     def from_dict(obj: Any) -> "Authentication":
         assert isinstance(obj, dict)
-        auth_id = from_str(obj.get("authId"))
         api_base_url = from_union([from_none, from_str], obj.get("apiBaseURL"))
         api_ext = from_union([from_none, from_str], obj.get("apiExt"))
         attrs = from_union(
@@ -531,15 +516,12 @@ class Authentication:
         password = from_union([from_none, from_str], obj.get("password"))
         redirect_uri = from_union([from_none, from_str], obj.get("redirectURI"))
         refresh_url = from_union([from_none, from_str], obj.get("refreshURL"))
-        rid_last = from_union([from_bool, from_none], obj.get("ridLast"))
         scope = from_union(
             [lambda x: from_list(from_str, x), from_none], obj.get("scope")
         )
-        tenant_path = from_union([from_none, from_str], obj.get("tenantPath"))
         token_url = from_union([from_none, from_str], obj.get("tokenURL"))
         username = from_union([from_none, from_str], obj.get("username"))
         return Authentication(
-            auth_id,
             api_base_url,
             api_ext,
             attrs,
@@ -560,16 +542,13 @@ class Authentication:
             password,
             redirect_uri,
             refresh_url,
-            rid_last,
             scope,
-            tenant_path,
             token_url,
             username,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["authId"] = from_str(self.auth_id)
         result["apiBaseURL"] = from_union([from_none, from_str], self.api_base_url)
         result["apiExt"] = from_union([from_none, from_str], self.api_ext)
         result["attrs"] = from_union(
@@ -637,209 +616,11 @@ class Authentication:
         result["password"] = from_union([from_none, from_str], self.password)
         result["redirectURI"] = from_union([from_none, from_str], self.redirect_uri)
         result["refreshURL"] = from_union([from_none, from_str], self.refresh_url)
-        result["ridLast"] = from_union([from_bool, from_none], self.rid_last)
         result["scope"] = from_union(
             [lambda x: from_list(from_str, x), from_none], self.scope
         )
-        result["tenantPath"] = from_union([from_none, from_str], self.tenant_path)
         result["tokenURL"] = from_union([from_none, from_str], self.token_url)
         result["username"] = from_union([from_none, from_str], self.username)
-        return result
-
-
-@dataclass
-class Resource:
-    """An API resource"""
-
-    """Unique identifier for the API resource"""
-    resource_id: str
-    attrs: Optional[Dict[str, Union[bool, AttrClass, int, str]]]
-    """The authorization object used to authenticate"""
-    auth_id: Optional[str]
-    """URL to API resource documentation"""
-    documentation_url: Optional[str]
-    """Resource fields to save from the parsed API response"""
-    fields: Optional[List[str]]
-    """Hide the resource from"""
-    hidden: Optional[bool]
-    """Field representing the resource ID"""
-    id_field: Optional[str]
-    """HTTP methods this resource allows"""
-    methods: Optional[List[str]]
-    """Field representing the resource name"""
-    name_field: Optional[str]
-    """resourceId of the base resource object"""
-    parent: Optional[str]
-    """What the resource is named in the API URL"""
-    resource: Optional[str]
-    """Currently active resource"""
-    rid: Optional[str]
-    """Currently active sub resource"""
-    srid: Optional[str]
-    """The path to extract from the parsed API response (should return a list of items)"""
-    subkey: Optional[str]
-    """What the sub resource is named in the API URL"""
-    subresource: Optional[str]
-
-    @staticmethod
-    def from_dict(obj: Any) -> "Resource":
-        assert isinstance(obj, dict)
-        resource_id = from_str(obj.get("resourceId"))
-        attrs = from_union(
-            [
-                lambda x: from_dict(
-                    lambda x: from_union(
-                        [from_bool, AttrClass.from_dict, from_int, from_str], x
-                    ),
-                    x,
-                ),
-                from_none,
-            ],
-            obj.get("attrs"),
-        )
-        auth_id = from_union([from_none, from_str], obj.get("authId"))
-        documentation_url = from_union(
-            [from_none, from_str], obj.get("documentationURL")
-        )
-        fields = from_union(
-            [lambda x: from_list(from_str, x), from_none], obj.get("fields")
-        )
-        hidden = from_union([from_bool, from_none], obj.get("hidden"))
-        id_field = from_union([from_none, from_str], obj.get("idField"))
-        methods = from_union(
-            [lambda x: from_list(from_str, x), from_none], obj.get("methods")
-        )
-        name_field = from_union([from_none, from_str], obj.get("nameField"))
-        parent = from_union([from_none, from_str], obj.get("parent"))
-        resource = from_union([from_none, from_str], obj.get("resource"))
-        rid = from_union([from_none, from_str], obj.get("rid"))
-        srid = from_union([from_none, from_str], obj.get("srid"))
-        subkey = from_union([from_none, from_str], obj.get("subkey"))
-        subresource = from_union([from_none, from_str], obj.get("subresource"))
-        return Resource(
-            resource_id,
-            attrs,
-            auth_id,
-            documentation_url,
-            fields,
-            hidden,
-            id_field,
-            methods,
-            name_field,
-            parent,
-            resource,
-            rid,
-            srid,
-            subkey,
-            subresource,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["resourceId"] = from_str(self.resource_id)
-        result["attrs"] = from_union(
-            [
-                lambda x: from_dict(
-                    lambda x: from_union(
-                        [
-                            from_bool,
-                            lambda x: to_class(AttrClass, x),
-                            from_int,
-                            from_str,
-                        ],
-                        x,
-                    ),
-                    x,
-                ),
-                from_none,
-            ],
-            self.attrs,
-        )
-        result["authId"] = from_union([from_none, from_str], self.auth_id)
-        result["documentationURL"] = from_union(
-            [from_none, from_str], self.documentation_url
-        )
-        result["fields"] = from_union(
-            [lambda x: from_list(from_str, x), from_none], self.fields
-        )
-        result["hidden"] = from_union([from_bool, from_none], self.hidden)
-        result["idField"] = from_union([from_none, from_str], self.id_field)
-        result["methods"] = from_union(
-            [lambda x: from_list(from_str, x), from_none], self.methods
-        )
-        result["nameField"] = from_union([from_none, from_str], self.name_field)
-        result["parent"] = from_union([from_none, from_str], self.parent)
-        result["resource"] = from_union([from_none, from_str], self.resource)
-        result["rid"] = from_union([from_none, from_str], self.rid)
-        result["srid"] = from_union([from_none, from_str], self.srid)
-        result["subkey"] = from_union([from_none, from_str], self.subkey)
-        result["subresource"] = from_union([from_none, from_str], self.subresource)
-        return result
-
-
-@dataclass
-class Webhook:
-    """A product from Acme's catalog"""
-
-    """The HTTP header to extract the webhook signature from"""
-    signature_header: str
-    """The password to decrypt the webhook payload"""
-    webhook_secret: str
-    """Use Base64 encoding instead of Hexadecimal"""
-    b64_encode: Optional[bool]
-    """The webhook digest algorithm"""
-    digest: Optional[str]
-    """URL to API resource documentation"""
-    documentation_url: Optional[str]
-    """Disable verification by ignoring the signature (insecure!)"""
-    ignore_signature: Optional[bool]
-    """Key to extract from the payload request"""
-    payload_key: Optional[str]
-    """Split signature at the `=` character"""
-    split_signature: Optional[bool]
-
-    @staticmethod
-    def from_dict(obj: Any) -> "Webhook":
-        assert isinstance(obj, dict)
-        signature_header = from_str(obj.get("signatureHeader"))
-        webhook_secret = from_str(obj.get("webhookSecret"))
-        b64_encode = from_union([from_bool, from_none], obj.get("b64Encode"))
-        digest = from_union([from_none, from_str], obj.get("digest"))
-        documentation_url = from_union(
-            [from_none, from_str], obj.get("documentationURL")
-        )
-        ignore_signature = from_union(
-            [from_bool, from_none], obj.get("ignoreSignature")
-        )
-        payload_key = from_union([from_none, from_str], obj.get("payloadKey"))
-        split_signature = from_union([from_bool, from_none], obj.get("splitSignature"))
-        return Webhook(
-            signature_header,
-            webhook_secret,
-            b64_encode,
-            digest,
-            documentation_url,
-            ignore_signature,
-            payload_key,
-            split_signature,
-        )
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["signatureHeader"] = from_str(self.signature_header)
-        result["webhookSecret"] = from_str(self.webhook_secret)
-        result["b64Encode"] = from_union([from_bool, from_none], self.b64_encode)
-        result["digest"] = from_union([from_none, from_str], self.digest)
-        result["documentationURL"] = from_union(
-            [from_none, from_str], self.documentation_url
-        )
-        result["ignoreSignature"] = from_union(
-            [from_bool, from_none], self.ignore_signature
-        )
-        result["payloadKey"] = from_union([from_none, from_str], self.payload_key)
-        result["splitSignature"] = from_union(
-            [from_bool, from_none], self.split_signature
-        )
         return result
 
 
@@ -851,33 +632,18 @@ class Provider:
     auths: List[Authentication]
     """Unique 3rd party identifier"""
     prefix: str
-    """Resources exposed by 3rd party API"""
-    resources: List[Resource]
-    """The id of a resource to redirect to after authenticating the user"""
-    status_resource: Optional[str]
-    webhook: Optional[Webhook]
 
     @staticmethod
     def from_dict(obj: Any) -> "Provider":
         assert isinstance(obj, dict)
         auths = from_list(Authentication.from_dict, obj.get("auths"))
         prefix = from_str(obj.get("prefix"))
-        resources = from_list(Resource.from_dict, obj.get("resources"))
-        status_resource = from_union([from_none, from_str], obj.get("statusResource"))
-        webhook = from_union([Webhook.from_dict, from_none], obj.get("webhook"))
-        return Provider(auths, prefix, resources, status_resource, webhook)
+        return Provider(auths, prefix)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["auths"] = from_list(lambda x: to_class(Authentication, x), self.auths)
         result["prefix"] = from_str(self.prefix)
-        result["resources"] = from_list(lambda x: to_class(Resource, x), self.resources)
-        result["statusResource"] = from_union(
-            [from_none, from_str], self.status_resource
-        )
-        result["webhook"] = from_union(
-            [lambda x: to_class(Webhook, x), from_none], self.webhook
-        )
         return result
 
 
