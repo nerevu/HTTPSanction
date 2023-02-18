@@ -152,7 +152,7 @@ def make_cache_key(*args, **kwargs):
     """Creates a memcache key for a url and its query/form parameters
 
     Returns:
-        (obj): Flask request url
+        (str): cache key
     """
     mimetype = get_mimetype()
     return f"{mimetype}:{request.full_path}"
