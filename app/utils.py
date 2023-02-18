@@ -195,13 +195,15 @@ def delete_cache(*args, cache_key=None, **kwargs):
             # remove all downstream keys since they are also stale, e.g., all pages of
             # a paginated route
             cache.clear()
-            logger.info("All caches cleared!")
+            message = "All caches cleared!"
         else:
             cache.delete(cache_key)
-            logger.info(f"Deleted cache for {cache_key}!")
+            message = f"Deleted cache for {cache_key}!"
     else:
         cache.clear()
-        logger.info("All caches cleared!")
+        message = "All caches cleared!"
+
+    logger.info(message)
 
 
 # https://gist.github.com/glenrobertson/954da3acec84606885f5
