@@ -1156,12 +1156,11 @@ class Auth(MethodView):
 class Memoization(MethodView):
     def get(self):
         base_url = get_request_base()
-        message = f"The {request.method}:{base_url} route is not yet complete."
 
         response = {
             "description": "Deletes a cache url",
             "links": sort_links(gen_links()),
-            "message": message,
+            "message": f"The {request.method}:{base_url} route is not yet complete.",
         }
 
         return jsonify(**response)
