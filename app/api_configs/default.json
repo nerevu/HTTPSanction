@@ -1,7 +1,7 @@
 {
   "name": "default",
   "description": "Authenticates with various 3rd party services!",
-  "message": "Welcome to the Nerevu API!",
+  "message": "Welcome to the HTTPSanction!",
   "methodViewRouteParams": [
     {
       "name": "memoization",

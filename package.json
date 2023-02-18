@@ -1,5 +1,5 @@
 {
-  "name": "rorschach",
+  "name": "HTTPSanction",
   "version": "0.33.0",
   "description": " A universal API authentication, integration, and verification Python library ",
   "scripts": {},
@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nerevu/rorschach.git"
+    "url": "git+https://github.com/nerevu/HTTPSanction.git"
   },
   "keywords": [
     "json-schema",
@@ -20,9 +20,9 @@
   "author": "Reuben Cummings",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/nerevu/rorschach/issues"
+    "url": "https://github.com/nerevu/HTTPSanction/issues"
   },
-  "homepage": "https://github.com/nerevu/rorschach#readme",
+  "homepage": "https://github.com/nerevu/HTTPSanction#readme",
   "devDependencies": {
     "eslint": "^8.7.0",
     "eslint-plugin-json": "^3.1.0",

@@ -1,12 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/nerevu/rorschach/master/app/schemas/blueprint-route-params.schema.json",
+  "$id": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/blueprint-route-params.schema.json",
   "title": "Blueprint Route Params",
   "description": "Blueprint route parameters",
   "type": "object",
   "allOf": [
     {
-      "$ref": "https://raw.githubusercontent.com/nerevu/rorschach/master/app/schemas/route-params.schema.json"
+      "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/route-params.schema.json"
     }
   ],
   "properties": {
