@@ -32,10 +32,10 @@ from mezmorize.utils import get_cache_config, get_cache_type
 from app.helpers import configure, email_hdlr, flask_formatter
 
 __version__ = "0.33.0"
-__title__ = "Nerevu API"
-__package_name__ = "api"
+__title__ = "HTTPSanction"
+__package_name__ = "HTTPSanction"
 __author__ = "Reuben Cummings"
-__description__ = "Nerevu monolith API"
+__description__ = "The last HTTP authentication library you'll ever need"
 __email__ = "rcummings@nerevu.com"
 __license__ = "MIT"
 __copyright__ = "Copyright 2019 Nerevu Group"

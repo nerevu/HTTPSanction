@@ -12,35 +12,6 @@ from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union, ca
 T = TypeVar("T")
 
 
-def from_list(f: Callable[[Any], T], x: Any) -> List[T]:
-    assert isinstance(x, list)
-    return [f(y) for y in x]
-
-
-def from_str(x: Any) -> str:
-    assert isinstance(x, str)
-    return x
-
-
-def from_none(x: Any) -> Any:
-    assert x is None
-    return x
-
-
-def from_union(fs, x):
-    for f in fs:
-        try:
-            return f(x)
-        except:
-            pass
-    assert False
-
-
-def to_class(c: Type[T], x: Any) -> dict:
-    assert isinstance(x, c)
-    return cast(Any, x).to_dict()
-
-
 def from_dict(f: Callable[[Any], T], x: Any) -> Dict[str, T]:
     assert isinstance(x, dict)
     return {k: f(v) for (k, v) in x.items()}
@@ -56,53 +27,33 @@ def from_int(x: Any) -> int:
     return x
 
 
-@dataclass
-class Conditional:
-    """description"""
-
-    """description"""
-    results: Optional[List[str]]
-    """description"""
-    test: Optional[str]
-
-    @staticmethod
-    def from_dict(obj: Any) -> "Conditional":
-        assert isinstance(obj, dict)
-        results = from_union(
-            [lambda x: from_list(from_str, x), from_none], obj.get("results")
-        )
-        test = from_union([from_none, from_str], obj.get("test"))
-        return Conditional(results, test)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["results"] = from_union(
-            [lambda x: from_list(from_str, x), from_none], self.results
-        )
-        result["test"] = from_union([from_none, from_str], self.test)
-        return result
+def from_str(x: Any) -> str:
+    assert isinstance(x, str)
+    return x
 
 
-@dataclass
-class AttrClass:
-    """description"""
+def from_union(fs, x):
+    for f in fs:
+        try:
+            return f(x)
+        except:
+            pass
+    assert False
 
-    conditional: Optional[Conditional]
 
-    @staticmethod
-    def from_dict(obj: Any) -> "AttrClass":
-        assert isinstance(obj, dict)
-        conditional = from_union(
-            [Conditional.from_dict, from_none], obj.get("conditional")
-        )
-        return AttrClass(conditional, func, path)
+def from_none(x: Any) -> Any:
+    assert x is None
+    return x
 
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["conditional"] = from_union(
-            [lambda x: to_class(Conditional, x), from_none], self.conditional
-        )
-        return result
+
+def from_list(f: Callable[[Any], T], x: Any) -> List[T]:
+    assert isinstance(x, list)
+    return [f(y) for y in x]
+
+
+def to_class(c: Type[T], x: Any) -> dict:
+    assert isinstance(x, c)
+    return cast(Any, x).to_dict()
 
 
 @dataclass
@@ -110,17 +61,17 @@ class Headers:
     """HTTP headers to include with requests (case sensitive)"""
 
     """Include in all requests"""
-    all: Optional[Dict[str, Union[bool, AttrClass, int, str]]]
+    all: Optional[Dict[str, Union[bool, int, str]]]
     """Include only in DELETE requests"""
-    delete: Optional[Dict[str, Union[bool, AttrClass, int, str]]]
+    delete: Optional[Dict[str, Union[bool, int, str]]]
     """Include only in GET requests"""
-    get: Optional[Dict[str, Union[bool, AttrClass, int, str]]]
+    get: Optional[Dict[str, Union[bool, int, str]]]
     """Include only in PATCH requests"""
-    patch: Optional[Dict[str, Union[bool, AttrClass, int, str]]]
+    patch: Optional[Dict[str, Union[bool, int, str]]]
     """Include only in POST requests"""
-    post: Optional[Dict[str, Union[bool, AttrClass, int, str]]]
+    post: Optional[Dict[str, Union[bool, int, str]]]
     """Include only in PUT requests"""
-    put: Optional[Dict[str, Union[bool, AttrClass, int, str]]]
+    put: Optional[Dict[str, Union[bool, int, str]]]
 
     @staticmethod
     def from_dict(obj: Any) -> "Headers":
@@ -128,10 +79,7 @@ class Headers:
         all = from_union(
             [
                 lambda x: from_dict(
-                    lambda x: from_union(
-                        [from_bool, AttrClass.from_dict, from_int, from_str], x
-                    ),
-                    x,
+                    lambda x: from_union([from_bool, from_int, from_str], x), x
                 ),
                 from_none,
             ],
@@ -140,10 +88,7 @@ class Headers:
         delete = from_union(
             [
                 lambda x: from_dict(
-                    lambda x: from_union(
-                        [from_bool, AttrClass.from_dict, from_int, from_str], x
-                    ),
-                    x,
+                    lambda x: from_union([from_bool, from_int, from_str], x), x
                 ),
                 from_none,
             ],
@@ -152,10 +97,7 @@ class Headers:
         get = from_union(
             [
                 lambda x: from_dict(
-                    lambda x: from_union(
-                        [from_bool, AttrClass.from_dict, from_int, from_str], x
-                    ),
-                    x,
+                    lambda x: from_union([from_bool, from_int, from_str], x), x
                 ),
                 from_none,
             ],
@@ -164,10 +106,7 @@ class Headers:
         patch = from_union(
             [
                 lambda x: from_dict(
-                    lambda x: from_union(
-                        [from_bool, AttrClass.from_dict, from_int, from_str], x
-                    ),
-                    x,
+                    lambda x: from_union([from_bool, from_int, from_str], x), x
                 ),
                 from_none,
             ],
@@ -176,10 +115,7 @@ class Headers:
         post = from_union(
             [
                 lambda x: from_dict(
-                    lambda x: from_union(
-                        [from_bool, AttrClass.from_dict, from_int, from_str], x
-                    ),
-                    x,
+                    lambda x: from_union([from_bool, from_int, from_str], x), x
                 ),
                 from_none,
             ],
@@ -188,10 +124,7 @@ class Headers:
         put = from_union(
             [
                 lambda x: from_dict(
-                    lambda x: from_union(
-                        [from_bool, AttrClass.from_dict, from_int, from_str], x
-                    ),
-                    x,
+                    lambda x: from_union([from_bool, from_int, from_str], x), x
                 ),
                 from_none,
             ],
@@ -204,16 +137,7 @@ class Headers:
         result["ALL"] = from_union(
             [
                 lambda x: from_dict(
-                    lambda x: from_union(
-                        [
-                            from_bool,
-                            lambda x: to_class(AttrClass, x),
-                            from_int,
-                            from_str,
-                        ],
-                        x,
-                    ),
-                    x,
+                    lambda x: from_union([from_bool, from_int, from_str], x), x
                 ),
                 from_none,
             ],
@@ -222,16 +146,7 @@ class Headers:
         result["DELETE"] = from_union(
             [
                 lambda x: from_dict(
-                    lambda x: from_union(
-                        [
-                            from_bool,
-                            lambda x: to_class(AttrClass, x),
-                            from_int,
-                            from_str,
-                        ],
-                        x,
-                    ),
-                    x,
+                    lambda x: from_union([from_bool, from_int, from_str], x), x
                 ),
                 from_none,
             ],
@@ -240,16 +155,7 @@ class Headers:
         result["GET"] = from_union(
             [
                 lambda x: from_dict(
-                    lambda x: from_union(
-                        [
-                            from_bool,
-                            lambda x: to_class(AttrClass, x),
-                            from_int,
-                            from_str,
-                        ],
-                        x,
-                    ),
-                    x,
+                    lambda x: from_union([from_bool, from_int, from_str], x), x
                 ),
                 from_none,
             ],
@@ -258,16 +164,7 @@ class Headers:
         result["PATCH"] = from_union(
             [
                 lambda x: from_dict(
-                    lambda x: from_union(
-                        [
-                            from_bool,
-                            lambda x: to_class(AttrClass, x),
-                            from_int,
-                            from_str,
-                        ],
-                        x,
-                    ),
-                    x,
+                    lambda x: from_union([from_bool, from_int, from_str], x), x
                 ),
                 from_none,
             ],
@@ -276,16 +173,7 @@ class Headers:
         result["POST"] = from_union(
             [
                 lambda x: from_dict(
-                    lambda x: from_union(
-                        [
-                            from_bool,
-                            lambda x: to_class(AttrClass, x),
-                            from_int,
-                            from_str,
-                        ],
-                        x,
-                    ),
-                    x,
+                    lambda x: from_union([from_bool, from_int, from_str], x), x
                 ),
                 from_none,
             ],
@@ -294,16 +182,7 @@ class Headers:
         result["PUT"] = from_union(
             [
                 lambda x: from_dict(
-                    lambda x: from_union(
-                        [
-                            from_bool,
-                            lambda x: to_class(AttrClass, x),
-                            from_int,
-                            from_str,
-                        ],
-                        x,
-                    ),
-                    x,
+                    lambda x: from_union([from_bool, from_int, from_str], x), x
                 ),
                 from_none,
             ],
@@ -326,8 +205,6 @@ class HeadlessElement:
     content: Optional[str]
     """Text to display when requesting user input (can't be mixed with `content`)."""
     prompt: Optional[str]
-    """Amount of seconds to wait before executing action"""
-    wait: Optional[int]
 
     @staticmethod
     def from_dict(obj: Any) -> "HeadlessElement":
@@ -337,8 +214,7 @@ class HeadlessElement:
         action = from_union([from_none, from_str], obj.get("action"))
         content = from_union([from_none, from_str], obj.get("content"))
         prompt = from_union([from_none, from_str], obj.get("prompt"))
-        wait = from_union([from_int, from_none], obj.get("wait"))
-        return HeadlessElement(description, selector, action, content, prompt, wait)
+        return HeadlessElement(description, selector, action, content, prompt)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -347,71 +223,6 @@ class HeadlessElement:
         result["action"] = from_union([from_none, from_str], self.action)
         result["content"] = from_union([from_none, from_str], self.content)
         result["prompt"] = from_union([from_none, from_str], self.prompt)
-        result["wait"] = from_union([from_int, from_none], self.wait)
-        return result
-
-
-@dataclass
-class MethodMap:
-    """Maps standard HTTP methods to API specific methods (case sensitive)"""
-
-    """Map DELETE requests"""
-    delete: Optional[str]
-    """Map GET requests"""
-    get: Optional[str]
-    """Map PATCH requests"""
-    patch: Optional[str]
-    """Map POST requests"""
-    post: Optional[str]
-    """Map PUT requests"""
-    put: Optional[str]
-
-    @staticmethod
-    def from_dict(obj: Any) -> "MethodMap":
-        assert isinstance(obj, dict)
-        delete = from_union([from_none, from_str], obj.get("DELETE"))
-        get = from_union([from_none, from_str], obj.get("GET"))
-        patch = from_union([from_none, from_str], obj.get("PATCH"))
-        post = from_union([from_none, from_str], obj.get("POST"))
-        put = from_union([from_none, from_str], obj.get("PUT"))
-        return MethodMap(delete, get, patch, post, put)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["DELETE"] = from_union([from_none, from_str], self.delete)
-        result["GET"] = from_union([from_none, from_str], self.get)
-        result["PATCH"] = from_union([from_none, from_str], self.patch)
-        result["POST"] = from_union([from_none, from_str], self.post)
-        result["PUT"] = from_union([from_none, from_str], self.put)
-        return result
-
-
-@dataclass
-class ParamMap:
-    """Maps standard parameters to API specific parameters"""
-
-    """The end date"""
-    end: Optional[str]
-    fields: Optional[str]
-    id: Optional[str]
-    """The start date"""
-    start: Optional[str]
-
-    @staticmethod
-    def from_dict(obj: Any) -> "ParamMap":
-        assert isinstance(obj, dict)
-        end = from_union([from_none, from_str], obj.get("end"))
-        fields = from_union([from_none, from_str], obj.get("fields"))
-        id = from_union([from_none, from_str], obj.get("id"))
-        start = from_union([from_none, from_str], obj.get("start"))
-        return ParamMap(end, fields, id, start)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["end"] = from_union([from_none, from_str], self.end)
-        result["fields"] = from_union([from_none, from_str], self.fields)
-        result["id"] = from_union([from_none, from_str], self.id)
-        result["start"] = from_union([from_none, from_str], self.start)
         return result
 
 
@@ -419,13 +230,11 @@ class ParamMap:
 class Authentication:
     """API authentication"""
 
+    """Unique API authentication type"""
+    auth_type: str
     """Base API URL"""
     api_base_url: Optional[str]
-    """Extension to place  at the end of API urls"""
-    api_ext: Optional[str]
-    attrs: Optional[Dict[str, Union[bool, AttrClass, int, str]]]
-    """The API authentication type"""
-    auth_type: Optional[str]
+    attrs: Optional[Dict[str, Union[bool, int, str]]]
     """API OAuth authorization URL"""
     authorization_base_url: Optional[str]
     """The API client ID"""
@@ -444,16 +253,12 @@ class Authentication:
     headless_elements: Optional[List[HeadlessElement]]
     """Use this authentication object if one isn't provided"""
     is_default: Optional[bool]
-    """Maps standard HTTP methods to API specific methods (case sensitive)"""
-    method_map: Optional[MethodMap]
-    """Maps standard parameters to API specific parameters"""
-    param_map: Optional[ParamMap]
-    params: Optional[Dict[str, Union[bool, AttrClass, int, str]]]
+    params: Optional[Dict[str, Union[bool, int, str]]]
     """The base authentication object"""
     parent: Optional[str]
     """The application password"""
     password: Optional[str]
-    """API OAuth flow callback entry point"""
+    """API OAuth flow callback entry point (defaults to `$PROVIDER_PREFIX-callback`"""
     redirect_uri: Optional[str]
     """API OAuth token refresh URL (defaults to the `tokenURL`)"""
     refresh_url: Optional[str]
@@ -467,21 +272,17 @@ class Authentication:
     @staticmethod
     def from_dict(obj: Any) -> "Authentication":
         assert isinstance(obj, dict)
+        auth_type = from_str(obj.get("authType"))
         api_base_url = from_union([from_none, from_str], obj.get("apiBaseURL"))
-        api_ext = from_union([from_none, from_str], obj.get("apiExt"))
         attrs = from_union(
             [
                 lambda x: from_dict(
-                    lambda x: from_union(
-                        [from_bool, AttrClass.from_dict, from_int, from_str], x
-                    ),
-                    x,
+                    lambda x: from_union([from_bool, from_int, from_str], x), x
                 ),
                 from_none,
             ],
             obj.get("attrs"),
         )
-        auth_type = from_union([from_none, from_str], obj.get("authType"))
         authorization_base_url = from_union(
             [from_none, from_str], obj.get("authorizationBaseURL")
         )
@@ -498,15 +299,10 @@ class Authentication:
             obj.get("headlessElements"),
         )
         is_default = from_union([from_bool, from_none], obj.get("isDefault"))
-        method_map = from_union([MethodMap.from_dict, from_none], obj.get("methodMap"))
-        param_map = from_union([ParamMap.from_dict, from_none], obj.get("paramMap"))
         params = from_union(
             [
                 lambda x: from_dict(
-                    lambda x: from_union(
-                        [from_bool, AttrClass.from_dict, from_int, from_str], x
-                    ),
-                    x,
+                    lambda x: from_union([from_bool, from_int, from_str], x), x
                 ),
                 from_none,
             ],
@@ -522,10 +318,9 @@ class Authentication:
         token_url = from_union([from_none, from_str], obj.get("tokenURL"))
         username = from_union([from_none, from_str], obj.get("username"))
         return Authentication(
-            api_base_url,
-            api_ext,
-            attrs,
             auth_type,
+            api_base_url,
+            attrs,
             authorization_base_url,
             client_id,
             client_secret,
@@ -535,8 +330,6 @@ class Authentication:
             headless,
             headless_elements,
             is_default,
-            method_map,
-            param_map,
             params,
             parent,
             password,
@@ -549,27 +342,17 @@ class Authentication:
 
     def to_dict(self) -> dict:
         result: dict = {}
+        result["authType"] = from_str(self.auth_type)
         result["apiBaseURL"] = from_union([from_none, from_str], self.api_base_url)
-        result["apiExt"] = from_union([from_none, from_str], self.api_ext)
         result["attrs"] = from_union(
             [
                 lambda x: from_dict(
-                    lambda x: from_union(
-                        [
-                            from_bool,
-                            lambda x: to_class(AttrClass, x),
-                            from_int,
-                            from_str,
-                        ],
-                        x,
-                    ),
-                    x,
+                    lambda x: from_union([from_bool, from_int, from_str], x), x
                 ),
                 from_none,
             ],
             self.attrs,
         )
-        result["authType"] = from_union([from_none, from_str], self.auth_type)
         result["authorizationBaseURL"] = from_union(
             [from_none, from_str], self.authorization_base_url
         )
@@ -588,25 +371,10 @@ class Authentication:
             self.headless_elements,
         )
         result["isDefault"] = from_union([from_bool, from_none], self.is_default)
-        result["methodMap"] = from_union(
-            [lambda x: to_class(MethodMap, x), from_none], self.method_map
-        )
-        result["paramMap"] = from_union(
-            [lambda x: to_class(ParamMap, x), from_none], self.param_map
-        )
         result["params"] = from_union(
             [
                 lambda x: from_dict(
-                    lambda x: from_union(
-                        [
-                            from_bool,
-                            lambda x: to_class(AttrClass, x),
-                            from_int,
-                            from_str,
-                        ],
-                        x,
-                    ),
-                    x,
+                    lambda x: from_union([from_bool, from_int, from_str], x), x
                 ),
                 from_none,
             ],
@@ -628,9 +396,9 @@ class Authentication:
 class Provider:
     """A 3rd party API provider"""
 
-    """Authentication methods accepted by 3rd party API"""
+    """Authentication methods accepted by API provider"""
     auths: List[Authentication]
-    """Unique 3rd party identifier"""
+    """Unique API provider identifier"""
     prefix: str
 
     @staticmethod

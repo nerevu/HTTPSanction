@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/nerevu/rorschach/master/app/schemas/config.schema.json",
+  "$id": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/config.schema.json",
   "title": "API Config",
   "description": "An exposed API Configuration",
   "type": "object",
@@ -30,7 +30,7 @@
       "type": "string",
       "default": "",
       "examples": [
-        "Welcome to the Nerevu API!"
+        "Welcome to the HTTPSanction!"
       ]
     },
     "methodViewRouteParams": {
@@ -40,7 +40,7 @@
       "items": {
         "type": "object",
         "default": {},
-        "$ref": "https://raw.githubusercontent.com/nerevu/rorschach/master/app/schemas/method-view-route-params.schema.json"
+        "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/method-view-route-params.schema.json"
       }
     },
     "blueprintRouteParams": {
@@ -50,7 +50,7 @@
       "items": {
         "type": "object",
         "default": {},
-        "$ref": "https://raw.githubusercontent.com/nerevu/rorschach/master/app/schemas/blueprint-route-params.schema.json"
+        "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/blueprint-route-params.schema.json"
       }
     },
     "authRouteParams": {
