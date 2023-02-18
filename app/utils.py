@@ -149,14 +149,26 @@ def parse(string):
     return parsed
 
 
-def make_cache_key(*args, **kwargs):
-    """Creates a memcache key for a url and its query/form parameters
+def make_cache_key(*args, cache_query=True, cache_mimetype=False, path=None, **kwargs):
+    """Creates a memcache key for a url and its query parameters
 
     Returns:
         (str): cache key
     """
-    mimetype = get_mimetype()
-    return f"{mimetype}:{request.full_path}"
+    try:
+        base_path, query_string = (path or request.full_path).split("?")
+    except ValueError:
+        base_path, query_string = (path or request.path), ""
+
+    cache_key = base_path.rstrip("/") or "/"
+
+    if cache_query and query_string:
+        cache_key += f":{get_hash(query_string)}"
+
+    if cache_mimetype:
+        cache_key += f":{get_mimetype(request)}"
+
+    return cache_key
 
 
 def fmt_elapsed(elapsed):
@@ -187,9 +199,9 @@ def fmt_elapsed(elapsed):
             yield "%d %s" % (value, attr[:-1] if value == 1 else attr)
 
 
-def delete_cache(*args, cache_key=None, **kwargs):
-    if cache_key or has_request_context():
-        cache_key = cache_key or make_cache_key(False, *args, **kwargs)
+def delete_cache(cache_key=None, path=None, clear=False):
+    if cache_key or (has_request_context() and not clear):
+        cache_key = cache_key or make_cache_key(cache_query=False, path=path)
 
         if len(cache_key.split(":")) == 2:
             # remove all downstream keys since they are also stale, e.g., all pages of
@@ -204,6 +216,7 @@ def delete_cache(*args, cache_key=None, **kwargs):
         message = "All caches cleared!"
 
     logger.info(message)
+    return message
 
 
 # https://gist.github.com/glenrobertson/954da3acec84606885f5
