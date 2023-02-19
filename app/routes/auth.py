@@ -66,30 +66,33 @@ class Auth(BaseView):
         Redirect the user owner to the OAuth provider (i.e. Github)
         using a URL with a few key OAuth parameters.
         """
+        authorization_url = None
+        result = jsonify()
         cache.set(f"{self.prefix}_callback_url", request.args.get("callback_url"))
         client = self.client
 
-        if client.oauth_version:
+        try:
             # https://gist.github.com/ib-lundgren/6507798#gistcomment-1006218
             # State is used to prevent CSRF, keep this for later.
             authorization_url, state = client.authorization_url
+        except AttributeError:
+            pass
+        else:
             client.state = session[f"{self.prefix}_state"] = state
             client.save()
 
-        if client.oauth_version and client.verified and not client.expired:
+        if client.verified and not client.expired:
             json = {k: getattr(client, k) for k in ["token", "state", "realm_id"]}
             result = jsonify(**json)
-        elif client.oauth_version:
+        else:
             if client.oauth1:
                 # clear previously cached token
                 client.renew_token()
                 authorization_url = client.authorization_url[0]
 
-            redirect_url = authorization_url
-            logger.info("redirecting to %s", redirect_url)
-            result = redirect(redirect_url)
-        else:
-            result = jsonify(**json)
+            if authorization_url:
+                logger.info("redirecting to %s", authorization_url)
+                result = redirect(authorization_url)
 
         return result
 
