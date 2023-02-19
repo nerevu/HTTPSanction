@@ -20,7 +20,7 @@ from flask import (
 from meza.fntools import remove_keys
 
 from app import LOG_LEVELS, cache
-from app.authclient import AuthClientTypes, callback, get_auth_client
+from app.authclient import AuthClientTypes, callback, get_auth_client, FLOW_TYPES
 from app.helpers import flask_formatter as formatter, get_verbosity
 from app.providers import Authentication
 from app.routes import PatchedMethodView
@@ -42,6 +42,10 @@ class BaseView(PatchedMethodView):
     client: AuthClientTypes = field(init=False, repr=False)
 
     def __attrs_post_init__(self, **kwargs):
+        if self.auth.flow_type in FLOW_TYPES and self.auth.auth_type == "oauth2":
+            self.auth.auth_type = f"oauth2{self.auth.flow_type}"
+            self.auth.flow_enum = FLOW_TYPES.get(self.auth.flow_type)
+
         super().__attrs_post_init__()
         self.methods = self.methods or ["GET"]
         self.verbosity = get_verbosity(**kwargs)

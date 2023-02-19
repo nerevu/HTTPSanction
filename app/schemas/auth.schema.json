@@ -70,6 +70,22 @@
       "uniqueItems": true,
       "pattern": "oauth1|oauth2|service|bearer|basic|custom"
     },
+    "flowType": {
+      "description": "OAuth2 flow type",
+      "type": "string",
+      "default": "",
+      "pattern": "web|backend|legacy"
+    },
+    "flowEnum": {
+      "description": "OAuth2 flow enum",
+      "type": "integer",
+      "default": false
+    },
+    "requiresBasicAuth": {
+      "description": "OAuth2 flow requires basic authentication",
+      "type": "boolean",
+      "default": false
+    },
     "clientId": {
       "description": "The API client ID",
       "type": "string",
