@@ -12,16 +12,14 @@ Endpoints:
 import hmac
 
 from base64 import b64encode
-from datetime import datetime as dt
-
-from flask import request, current_app as app
-from flask.views import MethodView
 
 import pygogo as gogo
 
-from app.routes import ProviderMixin
-from app.utils import get_links, jsonify, parse_request
+from flask import current_app as app, request
+
 from app.helpers import flask_formatter as formatter
+from app.routes import PatchedMethodView
+from app.utils import get_links, jsonify, parse_request
 
 # https://requests-oauthlib.readthedocs.io/en/latest/index.html
 # https://oauth-pythonclient.readthedocs.io/en/latest/index.html
@@ -34,7 +32,7 @@ logger.propagate = False
 ###########################################################################
 # METHODVIEW ROUTES
 ###########################################################################
-class Webhook(ProviderMixin, MethodView):
+class Webhook(PatchedMethodView):
     def __init__(self, *args, actions=None, activities=None, digest="sha256", **kwargs):
         super().__init__(*args, **kwargs)
         self.actions = actions or {}
@@ -114,8 +112,7 @@ class Webhook(ProviderMixin, MethodView):
         return jsonify(**json)
 
     def post(self, *args, **kwargs):
-        """ Respond to a Webhook post.
-        """
+        """Respond to a Webhook post."""
         if self.verified:
             payload = parse_request()
             value = payload.get(self.payload_key) if self.payload_key else payload
@@ -162,7 +159,7 @@ class AirtableHook(Webhook):
         action = self.actions.get(activity_name)
 
         if action:
-            json = action(event["ResourceId"], **kwargs)
+            json = action(**kwargs)
             result = json.get("response")
         else:
             logger.warning(f"Activity {activity_name} doesn't exist!")

@@ -14,22 +14,23 @@
     # will not run (see config.py).
     ###########################################################################
 """
+import logging
+
 from functools import partial
-from os import path as p, getenv
+from logging import DEBUG, WARNING
+from os import getenv, path as p
 from pathlib import Path
 from pickle import DEFAULT_PROTOCOL
-from logging import WARNING, DEBUG
 
 from flask import Flask
 from flask.logging import default_handler
-from flask_cors import CORS
 from flask_caching import Cache
 from flask_compress import Compress
+from flask_cors import CORS
+from meza.fntools import CustomEncoder
+from mezmorize.utils import get_cache_config, get_cache_type
 
 from app.helpers import configure, email_hdlr, flask_formatter
-
-from mezmorize.utils import get_cache_config, get_cache_type
-from meza.fntools import CustomEncoder
 
 __version__ = "0.33.0"
 __title__ = "Nerevu API"
@@ -41,6 +42,12 @@ __license__ = "MIT"
 __copyright__ = "Copyright 2019 Nerevu Group"
 
 BASEDIR = p.dirname(__file__)
+LOG_LEVELS = {
+    0: logging.ERROR,
+    1: logging.WARNING,
+    2: logging.INFO,
+    3: logging.DEBUG,
+}
 
 cache = Cache()
 compress = Compress()
@@ -106,7 +113,7 @@ def check_settings(app):
         server_name = app.config.get("SERVER_NAME")
 
         if server_name:
-            app.logger.info(f"SERVER_NAME from init is {server_name}.")
+            app.logger.info(f"SERVER_NAME is set to {server_name}.")
         else:
             app.logger.error("SERVER_NAME is not set!")
 
@@ -116,6 +123,8 @@ def check_settings(app):
                 app.logger.error(f"Production app setting {setting} is missing!")
     else:
         app.logger.info("Production server not detected.")
+
+    app.logger.info("API_URL is set to {API_URL}.".format(**app.config))
 
     if not required_setting_missing:
         app.logger.info("All required app settings present!")
@@ -129,7 +138,6 @@ def check_settings(app):
 
 def create_app(script_info=None, **kwargs):
     # https://flask.palletsprojects.com/en/1.1.x/logging/#basic-configuration
-    default_handler.setLevel(DEBUG)
     default_handler.setFormatter(flask_formatter)
 
     app = Flask(__name__)
@@ -146,10 +154,22 @@ def create_app(script_info=None, **kwargs):
         else:
             app.logger.warning("Invalid command. Use `manage run` to start the server.")
 
+    verbose = int(app.config.get("VERBOSE", 0))
+    default_handler.setLevel(LOG_LEVELS[verbose])
+
+    if script_info.command == "run":
+        try:
+            port = script_info.port
+        except AttributeError:
+            breakpoint()
+        else:
+            API_URL = app.config["API_URL"].format(port=port, **app.config)
+            app.config["API_URL"] = API_URL
+
     set_settings(app)
 
     if not app.debug:
-        email_hdlr.setLevel(WARNING)
+        email_hdlr.setLevel(logging.WARNING)
         email_hdlr.setFormatter(flask_formatter)
         app.logger.addHandler(email_hdlr)
 

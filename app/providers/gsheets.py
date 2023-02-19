@@ -7,13 +7,13 @@
 """
 from time import sleep
 
-import pygogo as gogo
 import gspread
+import pygogo as gogo
 
 from gspread.exceptions import APIError
 
-from app.routes.auth import Resource
 from app.helpers import flask_formatter as formatter
+from app.routes.auth import Resource
 
 logger = gogo.Gogo(
     __name__, low_formatter=formatter, high_formatter=formatter, monolog=True
@@ -91,10 +91,10 @@ class Worksheet(Spreadsheet):
                 self._worksheet = self.retry_method(
                     "worksheet", self.subresource, obj_attr="sheet"
                 )
-                self.subresource_id = self._worksheet.id
-            elif self.subresource_id is not None:
+                self.srid = self._worksheet.id
+            elif self.srid is not None:
                 self._worksheet = self.retry_method(
-                    "get_worksheet_by_id", self.subresource_id, obj_attr="sheet"
+                    "get_worksheet_by_id", self.srid, obj_attr="sheet"
                 )
                 self.subresource = self._worksheet.title
 

@@ -13,9 +13,9 @@
     # will not be run.
     ###########################################################################
 """
-from os import getenv, urandom, path as p
-from datetime import timedelta
 from collections import namedtuple
+from datetime import timedelta
+from os import getenv, path as p, urandom
 
 from dotenv import load_dotenv
 from mezmorize.utils import get_cache_config, get_cache_type
@@ -101,12 +101,15 @@ class Config(object):
     SEND_FILE_MAX_AGE_DEFAULT = ROUTE_TIMEOUT
     EMPTY_TIMEOUT = ROUTE_TIMEOUT * 10
     API_URL_PREFIX = "/v1"
-    API_URL = f"http://localhost:5000{API_URL_PREFIX}"
+    API_URL = "http://localhost:{port}{API_URL_PREFIX}"
     SECRET_KEY = SECRET = getenv(SECRET_ENV, urandom(24))
     CHROME_DRIVER_VERSIONS = [None] + list(range(87, 77, -1))
 
     APP_CONFIG_WHITELIST = {
         "CHUNK_SIZE",
+        "API_URL",
+        "CHUNK_SIZE",
+        "DEBUG",
         "ROW_LIMIT",
         "ERR_LIMIT",
         "ADMIN",
@@ -127,7 +130,7 @@ class Config(object):
     RESOURCES = {
         "airtable": {
             "Table": {"auth_key": "bearer", "resource": getenv("AIRTABLE_TABLE")},
-            "Status": {"base": "Table"},
+            "Status": {"parent": "Table"},
         },
         "aws": {
             "Distribution": {
@@ -137,7 +140,7 @@ class Config(object):
                 "id_field": "distribution_id",
                 "resource": "cloudfront",
                 "subkey": "DistributionList.Items",
-                "subresource_id": getenv("CLOUDFRONT_DISTRIBUTION_ID"),
+                "srid": getenv("CLOUDFRONT_DISTRIBUTION_ID"),
                 "responses": {
                     "get": {"func": "awsc.list_distributions"},
                     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/
@@ -145,7 +148,7 @@ class Config(object):
                     "delete": {
                         "func": "awsc.create_invalidation",
                         "kwargs": [
-                            ("DistributionId", "{subresource_id}"),
+                            ("DistributionId", "{srid}"),
                             ("InvalidationBatch", "{invalidation_batch}"),
                         ],
                     },
@@ -157,6 +160,10 @@ class Config(object):
                 "resource": "cloudfront",
                 "responses": {"get": "access_token: {awsc}"},
             },
+        },
+        "cloze": {
+            "Stages": {"auth_key": "api_key", "resource": "project_segments"},
+            "Status": {"auth_key": "api_key", "resource": "profile"},
         },
         "gsheets": {
             "Table": {
@@ -173,13 +180,34 @@ class Config(object):
                 "responses": {"get": "access_token: {gc.auth.token}"},
             },
         },
+        "gusto": {
+            "Companies": {"auth_key": "oauth2", "rid": getenv("GUSTO_COMPANY_ID")},
+            "Employees": {
+                "auth_key": "oauth2",
+                "resource": "companies",
+                "rid": getenv("GUSTO_COMPANY_ID"),
+                "subresource": "employees",
+            },
+            "Status": {"auth_key": "oauth2", "resource": "me"},
+            "Payments": {
+                "auth_key": "oauth2",
+                "resource": "companies",
+                "rid": getenv("GUSTO_COMPANY_ID"),
+                "subresource": "contractor_payments",
+            },
+            "Payrolls": {
+                "auth_key": "oauth2",
+                "rid": getenv("GUSTO_COMPANY_ID"),
+                "subresource": "contractor_payments",
+            },
+        },
         "keycdn": {
             "Zones": {
                 "auth_key": "basic",
                 "methods": ["GET", "PATCH", "POST", "DELETE"],
                 "subkey": "data.zones",
             },
-            "Status": {"base": "Zones"},
+            "Status": {"parent": "Zones"},
             "ZoneCache": {
                 "auth_key": "basic",
                 "resource": "zones",
@@ -198,7 +226,7 @@ class Config(object):
         },
         "mailgun": {
             "Domains": {"auth_key": "account", "subkey": "domain"},
-            "Status": {"base": "Domains"},
+            "Status": {"parent": "Domains"},
             "EmailLists": {
                 "auth_key": "account",
                 "id_field": "address",
@@ -210,11 +238,9 @@ class Config(object):
                 },
             },
             "EmailListMembers": {
-                "base": "EmailLists",
+                "parent": "EmailLists",
                 "subresource": "members",
-                "attrs": {
-                    "subkey": {"conditional": "rid", "result": ["items", "list"]}
-                },
+                "subkey": {"conditional": "rid", "result": ["items", "list"]},
             },
             "Email": {
                 "auth_key": "account",
@@ -231,7 +257,7 @@ class Config(object):
                 "id_field": "ID",
                 "name_field": "Name",
             },
-            "Status": {"base": "Domains"},
+            "Status": {"parent": "Domains"},
             "Templates": {
                 "auth_key": "server",
                 "subkey": "Templates",
@@ -316,77 +342,6 @@ class Config(object):
                 "fields": ["id", "name"],
             },
         },
-        "xero": {
-            "Status": {"auth_key": "simple", "resource": "connections"},
-            "Projects": {
-                "auth_key": "project",
-                "fields": ["projectId", "name", "status"],
-                "id_field": "projectId",
-                "subkey": "items",
-                "methods": ["GET", "POST"],
-            },
-            "Users": {
-                "auth_key": "project",
-                "resource": "projectsusers",
-                "fields": ["userId", "name"],
-                "id_field": "userId",
-                "subkey": "items",
-            },
-            "Contacts": {
-                "auth_key": "api",
-                "fields": ["ContactID", "Name", "FirstName", "LastName"],
-                "id_field": "ContactID",
-                "subkey": "Contacts",
-                "resource": "Contacts",
-            },
-            "Payments": {
-                "auth_key": "api",
-                "id_field": "PaymentID",
-                "subkey": "Payments",
-                "resource": "Payments",
-            },
-            "Invoices": {
-                "auth_key": "api",
-                "id_field": "InvoiceID",
-                "subkey": "Invoices",
-                "name_field": "InvoiceNumber",
-                "resource": "Invoices",
-                "methods": ["GET", "POST"],
-            },
-            "OnlineInvoices": {
-                "auth_key": "api",
-                "id_field": "OnlineInvoiceUrl",
-                "subkey": "OnlineInvoices",
-                "resource": "Invoices",
-                "subresource": "OnlineInvoice",
-            },
-            "Inventory": {
-                "auth_key": "api",
-                "fields": ["ItemID", "Name", "Code", "Description", "SalesDetails"],
-                "id_field": "ItemID",
-                "subkey": "Items",
-                "name_field": "Name",
-                "resource": "Items",
-            },
-            "ProjectTasks": {
-                "auth_key": "project",
-                "fields": ["taskId", "name", "status", "rate.value", "projectId"],
-                "id_field": "taskId",
-                "resource": "projects",
-                "subkey": "items",
-                "subresource": "tasks",
-                "methods": ["GET", "POST"],
-            },
-            "ProjectTime": {
-                "auth_key": "project",
-                "attrs": {"event_pos": 0, "event_id": ""},
-                "id_field": "timeEntryId",
-                "resource": "projects",
-                "subkey": "items",
-                "subresource": "time",
-                "methods": ["GET", "POST"],
-            },
-        },
     }
 
     # Authentication
@@ -403,7 +358,10 @@ class Config(object):
                     "offset": None,
                     "view": None,
                 },
-                "attrs": {"base_id": getenv("AIRTABLE_BASE_ID"), "subkey": "records"},
+                "subkey": "records",
+                "attrs": {
+                    "base_id": getenv("AIRTABLE_BASE_ID"),
+                },
             },
         },
         "aws": {
@@ -415,6 +373,21 @@ class Config(object):
                 "region_name": getenv("AWS_REGION"),
             },
         },
+        # https://api.cloze.com/api-docs
+        "cloze": {
+            # CLOZE_AUTH_PARAMS = {"user": client.username, "api_key": client.password}
+            # url = f"{CLOZE_BASE_URL}/{resource}/{verb}"
+            # params = {**CLOZE_AUTH_PARAMS, **kwargs}
+            # r = method(url, params=params)
+            "api_key": {
+                "auth_type": "custom",
+                "api_base_url": "https://api.cloze.com/v1",
+                "params": {
+                    "user": getenv("CLOZE_EMAIL"),
+                    "api_key": getenv("CLOZE_API_KEY"),
+                },
+            },
+        },
         "gsheets": {
             "service": {
                 "auth_type": "service",
@@ -422,6 +395,26 @@ class Config(object):
                 "scope": [
                     "https://spreadsheets.google.com/feeds",
                     "https://www.googleapis.com/auth/drive",
+                ],
+            },
+        },
+        # https://docs.gusto.com/docs/api
+        "gusto": {
+            "oauth2": {
+                "auth_type": "oauth2",
+                "api_base_url": "https://api.gusto-demo.com/v1",
+                "authorization_base_url": "https://api.gusto-demo.com/oauth/authorize",
+                "token_url": "https://api.gusto-demo.com/oauth/token",
+                "refresh_url": "https://api.gusto-demo.com/oauth/token",
+                "redirect_uri": "/gusto-callback",
+                "client_id": getenv("GUSTO_CLIENT_ID"),
+                "client_secret": getenv("GUSTO_SECRET"),
+                "param_map": {"start": "start_date", "end": "end_date"},
+                "scope": [
+                    "public",
+                    "payrolls.read",
+                    "employees.read",
+                    "companies.read",
                 ],
             },
         },
@@ -435,9 +428,20 @@ class Config(object):
             },
             "basic": {
                 "parent": "base",
+                "default": True,
                 "auth_type": "basic",
                 "username": getenv("KEYCDN_API_KEY"),
                 "password": "",
+            },
+            "custom": {
+                "parent": "base",
+                "auth_type": "custom",
+                "headers": {
+                    "all": {
+                        "Content-Type": "application/json",
+                        "X-Auth-Token": getenv("KEYCDN_API_KEY"),
+                    }
+                },
             },
         },
         # https://documentation.mailgun.com/en/latest/api_reference.html
@@ -467,6 +471,7 @@ class Config(object):
             },
             "account": {
                 "parent": "base",
+                "default": True,
                 "headers": {
                     "all": {
                         "X-Postmark-Account-Token": getenv("POSTMARK_ACCOUNT_TOKEN")
@@ -478,6 +483,35 @@ class Config(object):
                 "headers": {
                     "all": {"X-Postmark-Server-Token": getenv("POSTMARK_SERVER_TOKEN")},
                 },
+            },
+        },
+        "quickbooks": {
+            "oauth2": {
+                "auth_type": "oauth2",
+                "api_resource_prefix": "/company/{realm_id}",
+                "api_status_resource": "companyinfo",
+                "params": {
+                    "start": "start_date",
+                    "end": "end_date",
+                    "fields": "columns",
+                },
+                # https://developer.intuit.com/app/developer/qbo/docs/api/accounting/report-entities/transactionlist
+                "client_id": getenv("QB_CLIENT_ID"),
+                "client_secret": getenv("QB_CLIENT_SECRET"),
+                "redirect_uri": "/qb-callback",
+                "authorization_base_url": "https://appcenter.intuit.com/connect/oauth2",
+                "token_url": "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer",
+                "refresh_url": "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer",
+                "revoke_url": "https://developer.api.intuit.com/v2/oauth2/tokens/revoke",
+                "scope": ["com.intuit.quickbooks.accounting"],
+            },
+            "live": {
+                "parent": "base",
+                "api_base_url": "https://quickbooks.api.intuit.com/v3",
+            },
+            "sandbox": {
+                "parent": "base",
+                "api_base_url": "https://sandbox-quickbooks.api.intuit.com/v3",
             },
         },
         # https://app.timelyapp.com/777870/oauth_applications
@@ -496,7 +530,7 @@ class Config(object):
                 "password": getenv("TIMELY_PASSWORD"),
                 "method_map": {"patch": "put"},
                 "param_map": {"start": "since", "end": "upto"},
-                "attrs": {"singularize": True},
+                "singularize": True,
                 "headless_elements": [
                     {
                         "selector": "#email",
@@ -525,87 +559,6 @@ class Config(object):
                         "action": "click",
                     },
                 ],
-            },
-        },
-        # https://developer.xero.com/myapps/
-        "xero": {
-            "base": {
-                "auth_type": "oauth2",
-                "authorization_base_url": "https://login.xero.com/identity/connect/authorize",
-                "token_url": "https://identity.xero.com/connect/token",
-                "refresh_url": "https://identity.xero.com/connect/token",
-                "redirect_uri": "/xero-callback",
-                "headers": {"all": {"Xero-tenant-id": "{tenant_id}"}},
-                "client_id": getenv("XERO_CLIENT_ID"),
-                "client_secret": getenv("XERO_SECRET"),
-                "username": getenv("XERO_USERNAME"),
-                "password": getenv("XERO_PASSWORD"),
-                "param_map": {"start": "dateAfterUtc", "end": "dateBeforeUtc"},
-                # https://developer.xero.com/documentation/guides/oauth2/auth-flow/#xero-tenants
-                "tenant_path": "result[0].tenantId",
-                "scope": [
-                    "projects",
-                    "offline_access",
-                    "accounting.transactions",
-                    "accounting.settings",
-                    "accounting.contacts",
-                    "accounting.attachments",
-                    "files",
-                    "assets",
-                ],
-                "headless_elements": [
-                    {
-                        "selector": "#xl-form-email",
-                        "description": "xero username",
-                        "content": getenv("XERO_USERNAME"),
-                    },
-                    {
-                        "selector": "#xl-form-password",
-                        "description": "xero password",
-                        "content": getenv("XERO_PASSWORD"),
-                    },
-                    {
-                        "selector": "#xl-form-submit",
-                        "description": "xero sign in",
-                        "action": "click",
-                    },
-                    {
-                        "selector": '[placeholder="Authentication code"]',
-                        "description": "xero 2fa code",
-                        "prompt": True,
-                    },
-                    {
-                        "selector": '[type="submit"]',
-                        "description": "xero confirm",
-                        "action": "click",
-                    },
-                    {
-                        "selector": "#approveButton",
-                        "description": "xero connect",
-                        "action": "click",
-                    },
-                    {
-                        "selector": "#approveButton",
-                        "description": "xero allow access",
-                        "action": "click",
-                        "wait": 5,
-                    },
-                    {
-                        "selector": "#approveButton",
-                        "description": "xero select org",
-                        "action": "click",
-                        "wait": 5,
-                    },
-                ],
-            },
-            "simple": {"parent": "base", "api_base_url": "https://api.xero.com",},
-            "api": {
-                "parent": "base",
-                "api_base_url": "https://api.xero.com/api.xro/2.0",
-            },
-            "project": {
-                "parent": "base",
-                "api_base_url": "https://api.xero.com/projects.xro/2.0",
             },
         },
     }
@@ -648,6 +601,11 @@ class Config(object):
             "webhook_secret": getenv("AIRTABLE_WEBHOOK_SECRET"),
             "digest": None,
         },
+        "github": {
+            "webhook_secret": getenv("GITHUB_WEBHOOK_SECRET"),
+            "digest": "sha1",
+            "split_signature": True,
+        },
         "heroku": {
             "signature_header": "Heroku-Webhook-Hmac-SHA256",
             "webhook_secret": getenv("HEROKU_WEBHOOK_SECRET"),
@@ -656,12 +614,11 @@ class Config(object):
             "payload_key": "action",
             "ignore_signature": True,
         },
-        "xero": {
-            "signature_header": "x-xero-signature",
-            "webhook_secret": getenv("XERO_WEBHOOK_SECRET"),
-            "digest": "sha256",
-            "b64_encode": True,
-            "payload_key": "events",
+        "stripe": {
+            "signature_header": "HTTP_STRIPE_SIGNATURE",
+            "webhook_secret": getenv("STRIPE_WEBHOOK_SECRET"),
+            "digest": "sha1",
+            "split_signature": True,
         },
     }
 
@@ -670,11 +627,7 @@ class Config(object):
         "HEROKU_WEBHOOK_SECRET",
     ]
 
-    # RQ
-    REQUIRED_PROD_SETTINGS += ["RQ_DASHBOARD_USERNAME", "RQ_DASHBOARD_PASSWORD"]
-    RQ_DASHBOARD_REDIS_URL = redis_config.get("CACHE_REDIS_URL")
-    RQ_DASHBOARD_DEBUG = False
-
+    # Whitelist
     APP_CONFIG_WHITELIST.update(REQUIRED_SETTINGS)
     APP_CONFIG_WHITELIST.update(REQUIRED_PROD_SETTINGS)
     APP_CONFIG_WHITELIST.update(OPTIONAL_SETTINGS)
@@ -738,7 +691,6 @@ class Development(Config):
     base = "sqlite:///{}?check_same_thread=False"
     ENV = "development"
     SQLALCHEMY_DATABASE_URI = base.format(p.join(PARENT_DIR, "app.db"))
-    RQ_DASHBOARD_DEBUG = True
     DEBUG = True
     DEBUG_MEMCACHE = False
     DEBUG_QB_CLIENT = False

@@ -5,45 +5,44 @@
 
     Provides OAuth authentication functionality
 """
-from datetime import timezone, timedelta, datetime as dt
-from urllib.parse import urlencode, urlparse, parse_qs, parse_qsl
-from itertools import chain
+from dataclasses import asdict, dataclass, field
+from datetime import datetime as dt, timedelta, timezone
 from functools import partial
+from itertools import chain
 from json import JSONDecodeError, load
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from graphlib import TopologicalSorter
+from typing import Union
+from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse
 
-import requests
 import boto3
 import pygogo as gogo
+import requests
 
-
+from botocore.exceptions import ProfileNotFound
 from flask import (
+    after_this_request,
+    current_app as app,
+    g,
+    has_app_context,
+    redirect,
     request,
     session,
-    redirect,
-    g,
-    current_app as app,
-    after_this_request,
     url_for,
-    has_app_context,
 )
-
-from oauthlib.oauth2 import TokenExpiredError
-from google.oauth2.service_account import Credentials
 from google.auth.transport.requests import Request
-from botocore.exceptions import ProfileNotFound
-
+from google.oauth2.service_account import Credentials
+from oauthlib.oauth2 import TokenExpiredError
+from requests.auth import AuthBase
 from requests_oauthlib import OAuth1Session, OAuth2Session
 from requests_oauthlib.oauth1_session import TokenRequestDenied
 
-from config import Config
-
-from app import cache
-from app.utils import uncache_header, make_cache_key, jsonify, get_links
+from app import LOG_LEVELS, cache
 from app.headless import headless_auth
 from app.helpers import flask_formatter as formatter
+from app.providers import Authentication
+from app.utils import get_links, jsonify, uncache_header
+from config import Config
 
 logger = gogo.Gogo(
     __name__, low_formatter=formatter, high_formatter=formatter, monolog=True
@@ -57,55 +56,47 @@ RENEW_TIME = 60
 HEADERS = {"Accept": "application/json"}
 
 
-def _clear_cache():
-    cache.delete(make_cache_key())
+@dataclass
+class BaseClient(Authentication):
+    prefix: str = ""
+    created_at: Union[dt, int, str] = field(default=dt.now(timezone.utc), init=False)
+    error: str = field(default="", init=False)
+    oauth_version: int = field(default=None, init=False)
 
-
-class BaseClient(object):
-    def __init__(self, prefix, **kwargs):
-        self.prefix = prefix
-        self.auth = None
-        self.oauth_version = kwargs.get("oauth_version")
-        self.oauth1 = self.oauth_version == 1
-        self.oauth2 = self.oauth_version == 2
-        self.api_base_url = kwargs.get("api_base_url", "")
-        self.debug = kwargs.get("debug")
-        self.username = kwargs.get("username")
-        self.password = kwargs.get("password")
-        self.headers = kwargs.get("headers", {})
-        self.created_at = None
-        self.error = ""
+    def __post_init__(self):
+        self.auth_type = "custom"
 
     def __repr__(self):
         return f"{self.prefix} {self.auth_type}"
 
+    @property
+    def oauth1(self):
+        return self.oauth_version == 1
 
+    @property
+    def oauth2(self):
+        return self.oauth_version == 2
+
+
+@dataclass
 class AuthClient(BaseClient):
-    def __init__(self, prefix=None, **kwargs):
-        super().__init__(prefix, **kwargs)
-        self.auth_type = "custom"
-        self.verified = True
-        self.expired = False
+    verified: bool = True
+    expired: bool = False
 
 
+@dataclass
 class OAuth2BaseClient(BaseClient):
-    def __init__(
-        self,
-        prefix=None,
-        client_id=None,
-        client_secret=None,
-        refresh_url=None,
-        **kwargs,
-    ):
-        super().__init__(prefix, **kwargs)
-        self.scope = kwargs.get("scope", "")
-        self.state = kwargs.get("state")
-        self.access_token = None
-        self.refresh_token = None
-        self.realm_id = kwargs.get("realm_id")
-        self.tenant_id = kwargs.get("tenant_id")
-        self.expires_at = dt.now(timezone.utc)
-        self.expires_in = 0
+    access_token: str = ""
+    refresh_token: str = ""
+    state: str = ""
+    realm_id: str = ""
+    tenant_id: str = ""
+    expires_at: dt = field(default=dt.now(timezone.utc), init=False)
+    expires_in: int = field(default=0, init=False)
+    oauth_version: int = field(default=2, init=False)
+
+    def __post_init__(self):
+        super().__post_init__()
 
     @property
     def expired(self):
@@ -199,36 +190,20 @@ class OAuth2BaseClient(BaseClient):
         self.tenant_id = cache.get(f"{self.prefix}_tenant_id")
 
 
+@dataclass
 class OAuth2Client(OAuth2BaseClient):
-    def __init__(
-        self,
-        prefix=None,
-        client_id=None,
-        client_secret=None,
-        refresh_url=None,
-        **kwargs,
-    ):
-        super().__init__(prefix, **kwargs)
-        self.auth_type = "oauth2"
-        self.token_type = "Bearer"
-        self.client_id = client_id
-        self.client_secret = client_secret
-        self.refresh_url = refresh_url
-        self.oauth_session = None
+    revoke_url: str = ""
+    account_id: str = ""
+    extra: dict = field(init=False, default_factory=dict)
+    token_type: str = field(default="Bearer", init=False)
+    oauth_session: OAuth2Session = field(default=None, init=False)
+    tried_headless_auth: bool = field(default=False, init=False)
+    failed_headless_auth: bool = field(default=False, init=False)
 
-        self.authorization_base_url = kwargs.get("authorization_base_url")
-        self.revoke_url = kwargs.get("revoke_url")
-        self.redirect_uri = kwargs.get("redirect_uri")
-        self.token_url = kwargs.get("token_url")
-        self.account_id = kwargs.get("account_id")
+    def __post_init__(self):
+        super().__post_init__()
+        self.auth_type = "oauth2"
         self.extra = {"client_id": self.client_id, "client_secret": self.client_secret}
-        self.username = kwargs.get("username")
-        self.password = kwargs.get("password")
-        self.headless = kwargs.get("headless", False)
-        self.headless_elements = kwargs.get("headless_elements") or []
-        self.debug = kwargs.get("debug")
-        self.tried_headless_auth = False
-        self.failed_headless_auth = False
         self.restore()
         self._init_credentials()
 
@@ -242,16 +217,17 @@ class OAuth2Client(OAuth2BaseClient):
             logger.warning(f"{self.prefix} token expired. Attempting to renew...")
             self.renew_token("TokenExpiredError")
         except Exception as e:
-            self.error = str(e)
-            logger.error(
-                f"{self.prefix} error authenticating: {self.error}", exc_info=True
-            )
+            self.error = f"{self.prefix} error authenticating: {str(e)}"
         else:
             if self.verified:
-                logger.info(f"{self.prefix} successfully authenticated!")
+                self.error = ""
+                logger.debug(f"{self.prefix} successfully authenticated!")
             else:
                 logger.warning(f"{self.prefix} not authorized. Attempting to renew...")
                 self.renew_token("init")
+
+        if self.error:
+            logger.error(self.error)
 
     @property
     def failed_or_tried_headless(self):
@@ -323,8 +299,7 @@ class OAuth2Client(OAuth2BaseClient):
         try:
             token = self.oauth_session.fetch_token(self.token_url, **kwargs)
         except Exception as e:
-            self.error = str(e)
-            logger.error(f"Failed to fetch token: {self.error}", exc_info=True)
+            self.error = f"Failed to fetch token: {str(e)}"
             token = {}
         else:
             self.error = ""
@@ -339,7 +314,7 @@ class OAuth2Client(OAuth2BaseClient):
         logger.debug(f"renew {self} from {source}")
 
         if self.refresh_token and self.refresh_url:
-            logger.info(f"Renewing token using {self.refresh_url}…")
+            logger.debug(f"Renewing token using {self.refresh_url}…")
             args = (self.refresh_url, self.refresh_token)
 
             if self.client_id and self.client_secret:
@@ -351,20 +326,19 @@ class OAuth2Client(OAuth2BaseClient):
                 token = self.oauth_session.refresh_token(*args, auth=auth)
             except Exception as e:
                 self.error = f"Failed to renew {self}: {str(e)} Please re-authenticate!"
-                logger.error(self.error)
                 self.oauth_token = None
                 self.access_token = None
                 cache.set(f"{self.prefix}_access_token", self.access_token)
                 cache.set(f"{self.prefix}_oauth_token", self.oauth_token)
             else:
                 if self.oauth_session.authorized:
-                    logger.info(f"Successfully renewed {self}!")
+                    self.error = ""
+                    logger.debug(f"Successfully renewed {self}!")
                     self.token = token
                 else:
                     self.error = f"Failed to renew {self}!"
-                    logger.error(self.error)
         elif self.refresh_token:
-            logger.error("No refresh_url provided!")
+            self.error = "No refresh_url provided!"
         elif self.can_headlessly_auth:
             logger.info(f"Attempting to renew {self} using headless authentication")
             url = self.authorization_url[0]
@@ -380,7 +354,6 @@ class OAuth2Client(OAuth2BaseClient):
                     f" Previous headless authentication attempt {self.headless_status}."
                 )
 
-            logger.error(error)
             self.error = error
 
         return self
@@ -402,17 +375,19 @@ class OAuth2Client(OAuth2BaseClient):
         return json
 
 
+@dataclass
 class OAuth1Client(AuthClient):
-    def __init__(self, prefix=None, **kwargs):
-        super().__init__(prefix, **kwargs)
-        self.auth_type = "oauth1"
-        self.request_url = kwargs["request_url"]
-        self.verified = False
-        self.oauth_token = None
-        self.oauth_token_secret = None
-        self.oauth_expires_at = None
-        self.oauth_authorization_expires_at = None
+    request_url: str = ""
+    oauth_version: int = field(default=2, init=False)
+    verified: bool = field(default=False, init=False)
+    oauth_token: str = field(default=None, init=False)
+    oauth_token_secret: str = field(default=None, init=False)
+    oauth_expires_at: dt = field(default=dt.now(timezone.utc), init=False)
+    oauth_authorization_expires_at: dt = field(default=dt.now(timezone.utc), init=False)
 
+    def __post_init__(self):
+        super().__post_init__()
+        self.auth_type = "oauth1"
         self.restore()
         self._init_credentials()
 
@@ -421,8 +396,12 @@ class OAuth1Client(AuthClient):
             try:
                 self.token = self.oauth_session.fetch_request_token(self.request_url)
             except TokenRequestDenied as e:
-                self.error = str(e)
-                logger.error(f"Error authenticating: {self.error}", exc_info=True)
+                self.error = f"Error authenticating: {str(e)}"
+            else:
+                self.error = ""
+
+        if self.error:
+            logger.error(self.error)
 
     @property
     def expired(self):
@@ -505,11 +484,15 @@ class OAuth1Client(AuthClient):
         try:
             token = self.oauth_session.fetch_access_token(self.token_url, **kwargs)
         except TokenRequestDenied as e:
-            self.error = str(e)
-            logger.error(f"Error authenticating: {self.error}", exc_info=True)
+            token = None
+            self.error = f"Error authenticating: {str(e)}"
         else:
+            self.error = ""
             self.verified = True
             self.token = token
+
+        if self.error:
+            logger.error(self.error)
 
         return token
 
@@ -527,9 +510,8 @@ class OAuth1Client(AuthClient):
 
     def restore(self):
         logger.debug(f"restoring {self}")
-        def_expires_at = dt.now(timezone.utc) + timedelta(
-            seconds=int(OAUTH_EXPIRY_SECONDS)
-        )
+        seconds = int(OAUTH_EXPIRY_SECONDS)
+        def_expires_at = dt.now(timezone.utc) + timedelta(seconds=seconds)
 
         self.oauth_token = cache.get(f"{self.prefix}_oauth_token")
         self.oauth_token_secret = cache.get(f"{self.prefix}_oauth_token_secret")
@@ -558,38 +540,50 @@ class OAuth1Client(AuthClient):
         self._init_credentials()
 
 
+@dataclass
 class BasicAuthClient(AuthClient):
-    def __init__(self, prefix=None, username=None, password=None, **kwargs):
-        super().__init__(prefix, **kwargs)
+    auth: tuple[str, str] = field(init=False)
+
+    def __post_init__(self):
+        super().__post_init__()
         self.auth_type = "basic"
-        self.auth = (username, password)
+        self.auth = (self.username, self.password)
 
 
-class BearerAuth(requests.auth.AuthBase):
-    def __init__(self, token):
-        self.token = token
+@dataclass
+class BearerAuth(AuthBase, Authentication):
+    token: str = ""
+
+    def __post_init__(self):
+        super().__post_init__()
 
     def __call__(self, r):
         r.headers["authorization"] = f"Bearer {self.token}"
         return r
 
 
+@dataclass
 class BearerAuthClient(AuthClient):
-    def __init__(self, prefix=None, token=None, **kwargs):
-        super().__init__(prefix, **kwargs)
+    token: str = ""
+    auth: BearerAuth = field(init=False)
+
+    def __post_init__(self):
+        super().__post_init__()
         self.auth_type = "bearer"
-        self.auth = BearerAuth(token)
+        self.auth = BearerAuth(self.token)
 
 
+@dataclass
 class BotoAuthClient(AuthClient):
-    def __init__(self, prefix=None, profile_name=None, **kwargs):
-        super().__init__(prefix, **kwargs)
+    profile_name: str = ""
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
+    region_name: str = ""
+    _session: boto3.Session = field(init=False)
+
+    def __post_init__(self):
+        super().__post_init__()
         self.auth_type = "boto"
-        self.profile_name = profile_name
-        self.aws_access_key_id = kwargs.get("aws_access_key_id")
-        self.aws_secret_access_key = kwargs.get("aws_secret_access_key")
-        self.region_name = kwargs.get("region_name")
-        self._session = None
         self._init_credentials()
 
     @property
@@ -619,20 +613,22 @@ class BotoAuthClient(AuthClient):
         self.session
 
 
+@dataclass
 class ServiceAuthClient(OAuth2BaseClient):
-    def __init__(self, prefix=None, keyfile_path=None, **kwargs):
-        super().__init__(prefix, **kwargs)
-        self._info = None
-        self._credentials = None
+    keyfile_path: str = ""
+    private_key: str = field(init=False)
+    auth_provider_x509_cert_url: str = field(init=False)
+    client_x509_cert_url: str = field(init=False)
+    project_id: str = field(init=False)
+    client_email: str = field(init=False)
+    token_uri: str = field(init=False)
+    token_type: str = field(default="service", init=False)
+    _info: dict = field(init=False)
+    _credentials: Credentials = field(init=False)
+
+    def __post_init__(self):
+        super().__post_init__()
         self.auth_type = "service"
-        self.token_type = "service"
-        self.private_key = None
-        self.auth_provider_x509_cert_url = None
-        self.client_x509_cert_url = None
-        self.project_id = None
-        self.client_email = None
-        self.token_uri = None
-        self.keyfile_path = keyfile_path
         self.restore()
         self._init_credentials()
 
@@ -665,10 +661,13 @@ class ServiceAuthClient(OAuth2BaseClient):
             logger.warning(f"{self.prefix} token expired. Attempting to renew...")
             self.renew_token("TokenExpiredError")
         elif self.verified:
-            logger.info(f"{self.prefix} successfully authenticated!")
+            logger.debug(f"{self.prefix} successfully authenticated!")
         else:
             logger.warning(f"{self.prefix} not authorized. Attempting to renew...")
             self.renew_token("init")
+
+        if self.error:
+            logger.error(self.error)
 
     @property
     def info(self):
@@ -710,81 +709,76 @@ class ServiceAuthClient(OAuth2BaseClient):
         return self._token
 
     def renew_token(self, source):
-        logger.debug(f"renew {self} from {source}")
-        logger.info("Renewing token using credentials refresh…")
+        logger.debug("Renewing {self} token from {source} using credentials refresh…")
         self.credentials.refresh(Request())
 
         if self.verified:
+            self.error = ""
             self.token = self._token
         else:
-            logger.info("Failed to renew, re-authenticating…")
+            logger.debug("Failed to renew, re-authenticating…")
             self.fetch_token()
 
             if self.verified:
-                logger.info(f"Successfully renewed {self}!")
+                logger.debug(f"Successfully renewed {self}!")
                 self.token = self._token
             else:
                 self.error = f"Failed to renew {self}: Please re-authenticate!"
-                logger.error(self.error)
 
         return self
 
 
-def get_auth(prefix, auth_key=None, **kwargs):
-    authentication = kwargs["AUTHENTICATION"].get(prefix.lower(), {})
+AVAILABLE_AUTHS = {
+    "oauth1": OAuth1Client,
+    "oauth2": OAuth2Client,
+    "service": ServiceAuthClient,
+    "bearer": BearerAuthClient,
+    "boto": BotoAuthClient,
+    "basic": BasicAuthClient,
+    "custom": AuthClient,
+}
 
-    if not auth_key:
-        graph = {k: {v.get("parent")} for k, v in authentication.items()}
-        sorted = tuple(TopologicalSorter(graph).static_order())
-        auth_key = sorted[-1]
-
-    auth_kwargs = authentication[auth_key]
-
-    if auth_kwargs.get("parent"):
-        auth_kwargs = {**authentication[auth_kwargs["parent"]], **auth_kwargs}
-
-    return (auth_key, auth_kwargs)
+AuthClientTypes = Union[
+    OAuth1Client,
+    OAuth2Client,
+    ServiceAuthClient,
+    BearerAuthClient,
+    BotoAuthClient,
+    BasicAuthClient,
+    AuthClient,
+]
 
 
-def get_auth_client(prefix, state=None, API_URL="", **kwargs):
-    auth_key, auth_kwargs = get_auth(prefix, **kwargs)
-    auth_client_name = f"{prefix}_{auth_key}_auth_client"
+def get_auth_client(
+    prefix: str,
+    auth: Authentication = None,
+    state: str = None,
+    verbose: int = 0,
+    api_url: str = "",
+    **kwargs,
+) -> AuthClientTypes:
+    logger.setLevel(LOG_LEVELS[verbose])
+    auth_client_name = f"{prefix}_{auth.auth_id}_auth_client"
 
     if auth_client_name not in g:
-        available_auths = {
-            "oauth1": {"oauth_version": 1, "auth_client": OAuth1Client},
-            "oauth2": {"oauth_version": 2, "auth_client": OAuth2Client, "state": state},
-            "service": {"auth_client": ServiceAuthClient},
-            "bearer": {"auth_client": BearerAuthClient},
-            "boto": {"auth_client": BotoAuthClient},
-            "basic": {"auth_client": BasicAuthClient},
-            "custom": {"auth_client": AuthClient},
-        }
+        auth_type = auth.auth_type
+        MyAuthClient = AVAILABLE_AUTHS[auth_type]
+        redirect_uri = auth.redirect_uri or ""
 
-        auth_type = auth_kwargs["auth_type"]
-        extra_auth_kwargs = available_auths[auth_type]
-        MyAuthClient = extra_auth_kwargs.pop("auth_client")
-        auth_kwargs.update(extra_auth_kwargs)
-        redirect_uri = auth_kwargs.get("redirect_uri") or ""
-
-        if redirect_uri.startswith("/") and API_URL:
-            auth_kwargs["redirect_uri"] = f"{API_URL}{redirect_uri}"
+        if redirect_uri.startswith("/") and api_url:
+            auth.redirect_uri = f"{api_url}{redirect_uri}"
 
         if "debug" in kwargs:
-            auth_kwargs["debug"] = kwargs["debug"]
+            auth.debug = kwargs["debug"]
 
         if "headless" in kwargs:
-            auth_kwargs["headless"] = kwargs["headless"]
+            auth.headless = kwargs["headless"]
 
-        client = MyAuthClient(prefix, **auth_kwargs)
-        client.attrs = auth_kwargs.get("attrs", {})
-        client.params = auth_kwargs.get("params", {})
-        client.param_map = auth_kwargs.get("param_map", {})
-        client.verb_map = auth_kwargs.get("verb_map", {})
-        client.method_map = auth_kwargs.get("method_map", {})
-        client.tenant_path = auth_kwargs.get("tenant_path")
-        client.api_ext = auth_kwargs.get("api_ext")
-        client.rid_last = auth_kwargs.get("rid_last")
+        client = MyAuthClient(prefix=prefix, state=state, **asdict(auth))
+        client.attrs = auth.attrs or {}
+        client.params = auth.params or {}
+        client.param_map = auth.param_map or {}
+        client.method_map = auth.method_map or {}
 
         try:
             restore_from_headless = client.restore_from_headless
@@ -864,6 +858,7 @@ def get_json_error(url, result):
     content_type = result.headers.get("Content-Type", "")
     is_json = content_type.endswith("json")
     is_file = content_type.endswith("pdf")
+    f = None
 
     if is_json and 200 <= result.status_code < 300:
         status_code = 500
@@ -888,16 +883,14 @@ def get_json_error(url, result):
 
     json = {"message": message, "status_code": status_code}
 
-    if is_file:
+    if f:
         json["result"] = {f.name}
 
     return json
 
 
 def debug_header(result):
-    for key, value in result.request.headers.items():
-        logger.debug({key: value[:32]})
-
+    logger.debug({k: v[:32] for k, v in result.request.headers.items()})
     body = result.request.body or ""
 
     try:
@@ -910,13 +903,12 @@ def debug_header(result):
         logger.debug({k: v[0] for k, v in parsed.items()})
 
 
-def debug_json(url, method="get", status_code=200, **kwargs):
+def debug_json(client, url, method="get", status_code=200, **kwargs):
     try:
 
         @after_this_request
         def clear_cache(response):
-            _clear_cache()
-            return uncache_header(response)
+            return uncache_header(response, cache_key=f"{client.prefix}_access_token")
 
     except AttributeError:
         pass
@@ -940,13 +932,19 @@ def debug_status(client, unscoped=False, status_code=200, **kwargs):
     logger.debug(message)
 
 
+def is_ok(success_code=200, **kwargs):
+    status_code = kwargs.get("status_code", success_code)
+    ok = 200 <= status_code < 300
+    return (status_code, ok)
+
+
 def get_result(url, client, params=None, method="get", **kwargs):
     params = params or {}
-    data = kwargs.get("data", {})
-    json_data = kwargs.get("json", {})
-    def_headers = kwargs.get("headers", {})
-    all_headers = client.headers.get("all", {})
-    method_headers = client.headers.get(method, {})
+    data = kwargs.get("data") or {}
+    json_data = kwargs.get("json") or {}
+    def_headers = kwargs.get("headers") or {}
+    all_headers = client.headers.get("all") or {}
+    method_headers = client.headers.get(method) or {}
     __headers = {**all_headers, **method_headers}
     _headers = {k: v.format(**client.__dict__) for k, v in __headers.items()}
     headers = {**HEADERS, **_headers, **def_headers}
@@ -1009,18 +1007,12 @@ def get_json(url, client, params=None, method="get", success_code=200, **kwargs)
         else:
             json = get_errors(result, json)
 
-    ok = is_ok(success_code, **json)
+    status_code, ok = is_ok(success_code, **json)
 
-    if result and not ok and kwargs.get("debug"):
+    if (result is not None) and (not ok) and kwargs.get("debug"):
         debug_header(result)
 
     return (json, unscoped)
-
-
-def is_ok(success_code=200, **kwargs):
-    status_code = kwargs.get("status_code", success_code)
-    ok = 200 <= status_code < 300
-    return (status_code, ok)
 
 
 def get_json_response(url, client, params=None, renewed=False, **kwargs):
@@ -1063,13 +1055,16 @@ def get_json_response(url, client, params=None, renewed=False, **kwargs):
     elif ok and has_app_context():
         json["links"] = get_links(app.url_map.iter_rules())
     else:
-        debug_json(url, method=method, **json)
+        debug_json(client, url, method=method, **json)
 
     return json
 
 
-def get_redirect_url(prefix):
-    """ Step 3: Retrieving an access token.
+def get_redirect_url(
+    prefix: str, auth: Authentication = None, **kwargs
+) -> tuple[str, AuthClientTypes]:
+
+    """Step 3: Retrieving an access token.
 
     The user has been redirected back from the provider to your registered
     callback URL. With this redirection comes an authorization code included
@@ -1080,7 +1075,9 @@ def get_redirect_url(prefix):
     state = json.get("state") or session.get(f"{prefix}_state")
     realm_id = json.get("realm_id") or session.get(f"{prefix}_realm_id")
     valid = state or all(map(json.get, ["oauth_token", "oauth_verifier", "org"]))
-    client = get_auth_client(prefix, state=state, realm_id=realm_id, **app.config)
+    client = get_auth_client(
+        prefix, auth, state=state, realm_id=realm_id, **kwargs, **app.config
+    )
 
     if valid:
         session[f"{prefix}_state"] = client.state
@@ -1099,8 +1096,8 @@ def get_redirect_url(prefix):
     return redirect_url, client
 
 
-def callback(prefix):
-    redirect_url, client = get_redirect_url(prefix)
+def callback(prefix: str, auth: Authentication = None, **kwargs):
+    redirect_url, client = get_redirect_url(prefix, auth, **kwargs)
 
     if client.error:
         json = {

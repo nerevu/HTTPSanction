@@ -5,33 +5,31 @@
 
     Provides misc utility functions
 """
-import re
 import hmac
+import re
 
-from json import load, loads, dumps
 from ast import literal_eval
-from datetime import datetime as dt, date, timedelta
-from time import gmtime
-from functools import wraps, partial
+from datetime import date, datetime as dt, timedelta, timezone
+from functools import partial, wraps
 from hashlib import md5
 from http.client import responses
+from json import dumps, load, loads
 from json.decoder import JSONDecodeError
-from subprocess import call
 from pprint import pprint
+from subprocess import call
+from time import gmtime
 
 import pygogo as gogo
 
-from flask import make_response, request, has_request_context
 from dateutil.relativedelta import relativedelta
-
-from riko.dotdict import DotDict
-from meza.fntools import CustomEncoder
+from flask import has_request_context, make_response, request
 from meza.convert import records2csv
-
-from config import Config, get_seconds
+from meza.fntools import CustomEncoder
+from riko.dotdict import DotDict
 
 from app import cache
 from app.helpers import flask_formatter as formatter
+from config import Config, get_seconds
 
 logger = gogo.Gogo(
     __name__, low_formatter=formatter, high_formatter=formatter, monolog=True
@@ -40,6 +38,9 @@ logger.propagate = False
 
 ENCODING = "utf-8"
 EPOCH = dt(*gmtime(0)[:6])
+# https://stackoverflow.com/a/1176023/408556
+PASCAL_PATTERN = re.compile(r"(?<!^)(?=[A-Z])")
+
 
 MIMETYPES = [
     "application/json",
@@ -80,7 +81,7 @@ YESTERDAY = TODAY - timedelta(days=1)
 
 
 def responsify(mimetype, status_code=200, indent=2, sort_keys=True, **kwargs):
-    """ Creates a jsonified response. Necessary because the default
+    """Creates a jsonified response. Necessary because the default
     flask.jsonify doesn't correctly handle sets, dates, or iterators
 
     Args:
@@ -118,7 +119,7 @@ jsonify = partial(responsify, "application/json")
 
 
 def parse(string):
-    """ Parses a string into an equivalent Python object
+    """Parses a string into an equivalent Python object
 
     Args:
         string (str): The string to parse
@@ -148,18 +149,30 @@ def parse(string):
     return parsed
 
 
-def make_cache_key(*args, **kwargs):
-    """ Creates a memcache key for a url and its query/form parameters
+def make_cache_key(*args, cache_query=True, cache_mimetype=False, path=None, **kwargs):
+    """Creates a memcache key for a url and its query parameters
 
     Returns:
-        (obj): Flask request url
+        (str): cache key
     """
-    mimetype = get_mimetype()
-    return f"{mimetype}:{request.full_path}"
+    try:
+        base_path, query_string = (path or request.full_path).split("?")
+    except ValueError:
+        base_path, query_string = (path or request.path), ""
+
+    cache_key = base_path.rstrip("/") or "/"
+
+    if cache_query and query_string:
+        cache_key += f":{get_hash(query_string)}"
+
+    if cache_mimetype:
+        cache_key += f":{get_mimetype(request)}"
+
+    return cache_key
 
 
 def fmt_elapsed(elapsed):
-    """ Generates a human readable representation of elapsed time.
+    """Generates a human readable representation of elapsed time.
 
     Args:
         elapsed (float): Number of elapsed seconds.
@@ -186,21 +199,24 @@ def fmt_elapsed(elapsed):
             yield "%d %s" % (value, attr[:-1] if value == 1 else attr)
 
 
-def delete_cache(*args, cache_key=None, **kwargs):
-    if cache_key or has_request_context():
-        cache_key = cache_key or make_cache_key(False, *args, **kwargs)
+def delete_cache(cache_key=None, path=None, clear=False):
+    if cache_key or (has_request_context() and not clear):
+        cache_key = cache_key or make_cache_key(cache_query=False, path=path)
 
-        if len(cache_key.split(":")) < 3:
+        if len(cache_key.split(":")) == 2:
             # remove all downstream keys since they are also stale, e.g., all pages of
             # a paginated route
             cache.clear()
-            logger.info("All caches cleared!")
+            message = "All caches cleared!"
         else:
             cache.delete(cache_key)
-            logger.info(f"Deleted cache for {cache_key}!")
+            message = f"Deleted cache for {cache_key}!"
     else:
         cache.clear()
-        logger.info("All caches cleared!")
+        message = "All caches cleared!"
+
+    logger.info(message)
+    return message
 
 
 # https://gist.github.com/glenrobertson/954da3acec84606885f5
@@ -303,7 +319,7 @@ def get_common_rel(resourceName, method):
 
 
 def get_resource_name(rule):
-    """ Returns resourceName from endpoint
+    """Returns resourceName from endpoint
 
     Args:
         rule (str): the endpoint path (e.g. '/v1/data')
@@ -321,7 +337,7 @@ def get_resource_name(rule):
 
 
 def get_params(rule):
-    """ Returns params from the url
+    """Returns params from the url
 
     Args:
         rule (str): the endpoint path (e.g. '/v1/data/<int:id>')
@@ -344,7 +360,7 @@ def get_params(rule):
 
 
 def get_rel(href, method, rule):
-    """ Returns the `rel` of an endpoint (see `Returns` below).
+    """Returns the `rel` of an endpoint (see `Returns` below).
 
     If the rule is a common rule as specified in the utils.py file, then that rel is
     returned.
@@ -410,7 +426,7 @@ def get_request_base():
 
 
 def gen_links(rules):
-    """ Makes a generator of all endpoints, their methods,
+    """Makes a generator of all endpoints, their methods,
     and their rels (strings representing purpose of the endpoint)
 
     Yields: (dict)
@@ -434,22 +450,27 @@ def gen_links(rules):
 
 
 def get_links(rules):
-    """ Sorts endpoint links alphabetically by their href
-    """
+    """Sorts endpoint links alphabetically by their href"""
     links = gen_links(rules)
     return sorted(links, key=lambda link: link["href"])
 
 
-def parse_kwargs(app):
-    form = request.form or {}
+def parse_request(app=None):
     args = request.args.to_dict()
-    _kwargs = {**form, **args}
-    kwargs = {k: parse(v) for k, v in _kwargs.items()}
+    form = request.form or {}
+    json = request.get_json(force=True, silent=True) or {}
 
-    with app.app_context():
-        for k, v in app.config.items():
-            if k in APP_CONFIG_WHITELIST:
-                kwargs.setdefault(k.lower(), v)
+    if form and "json" not in get_mimetype():
+        form = loads(list(form)[0])
+
+    _kwargs = {**args, **form, **json}
+    kwargs = {camel_to_snake_case(k): parse(v) for k, v in _kwargs.items()}
+
+    if app:
+        with app.app_context():
+            for k, v in app.config.items():
+                if k in APP_CONFIG_WHITELIST:
+                    kwargs.setdefault(k.lower(), v)
 
     return kwargs
 
@@ -461,20 +482,13 @@ def gen_config(app):
                 yield (k.lower(), v)
 
 
-def parse_request():
-    args = request.args or {}
-    form = request.form or {}
-
-    if form and "json" not in get_mimetype():
-        form = loads(list(form)[0])
-
-    json = request.get_json(force=True, silent=True) or {}
-    kwargs = {**args, **form, **json}
-    return {k: parse(v) for k, v in kwargs.items()}
-
-
 def hash_text(**kwargs):
     return get_hash("{email}:{list}:{secret}".format(**kwargs))
+
+
+# https://stackoverflow.com/a/1176023/408556
+def camel_to_snake_case(name):
+    return PASCAL_PATTERN.sub("-", name).lower()
 
 
 def verify(hash="", **kwargs):
@@ -564,3 +578,29 @@ def extract_fields(record, *fields, **kwargs):
     for field in fields:
         value = extract_field(record, field, **kwargs)
         yield (field, value)
+
+
+def parse_ts(date_str):
+    # "/Date(1518685950940+0000)/"
+    # https://developer.xero.com/documentation/api/accounting/requests-and-responses#json-responses-and-date-formats
+    # https://stackoverflow.com/a/37097784/408556
+    ms, sign, hours, minutes = re.search(
+        r"[\D+](\d+)([+\-])(\d{2})(\d{2})", date_str
+    ).groups(0)
+    ts = int(ms) / 1000
+    sign = -1 if sign == "-" else 1
+    tz = timezone(sign * timedelta(hours=int(hours), minutes=int(minutes)))
+    date_obj = dt.fromtimestamp(ts, tz=tz)
+    return date_obj.isoformat()
+
+
+def parse_tuple(key, value, prefix=None):
+    if value.startswith("/Date("):
+        value = parse_ts(value)
+
+    return (key, value)
+
+
+def parse_item(item, prefix=None):
+    for k, v in item.items():
+        yield parse_tuple(k, v, prefix=prefix)

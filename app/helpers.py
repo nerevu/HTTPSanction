@@ -5,24 +5,27 @@
 
     Provides misc helper functions
 """
-import pdb
 import logging
+import pdb
 
 from datetime import date
-from inspect import getmembers, isclass
+from graphlib import TopologicalSorter
 from importlib import import_module
-from os import getenv
-from traceback import format_exception
+from inspect import getmembers, isclass
 from json.decoder import JSONDecodeError
 from logging import Formatter
+from os import getenv
+from traceback import format_exception
 
 import inflect
 import pygogo as gogo
-import config
 
 from flask import current_app as app, has_request_context, request
-from config import Config, __APP_NAME__
 from pygogo.formatters import DATEFMT
+
+import config
+
+from config import __APP_NAME__, Config
 
 p = inflect.engine()
 singularize = p.singular_noun
@@ -207,3 +210,16 @@ def parse_date(date_str):
         parsed = date(year, month, day).isoformat()
 
     return parsed
+
+
+def toposort(*args, parent_key="parent", id_key="id", **kwargs):
+    if args:
+        graph = {getattr(arg, id_key): {getattr(arg, parent_key)} for arg in args}
+        lookup = {getattr(arg, id_key): arg for arg in args}
+    else:
+        graph = {k: {v.get(parent_key)} for k, v in kwargs.items()}
+        lookup = kwargs
+
+    for name in tuple(TopologicalSorter(graph).static_order()):
+        if name:
+            yield (name, lookup[name])
