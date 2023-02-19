@@ -19,7 +19,7 @@ from flask import (
 )
 
 from app import LOG_LEVELS, cache
-from app.authclient import AuthClientTypes, callback, get_auth_client
+from app.authclient import AuthClientTypes, callback, get_auth_client, FLOW_TYPES
 from app.helpers import flask_formatter as formatter, get_verbosity
 from app.providers import Authentication
 from app.routes import PatchedMethodView
@@ -47,7 +47,14 @@ class BaseView(PatchedMethodView):
         self.verbosity = get_verbosity(**kwargs)
         logger.setLevel(LOG_LEVELS.get(self.verbosity))
 
+        if not self.auth.flow_type:
+            self.auth.flow_type = "web"
+
         api_url = kwargs.get("API_URL").format(app.config["PORT"], **kwargs)
+
+        if self.auth.flow_type in FLOW_TYPES and self.auth.auth_type == "oauth2":
+            self.auth.auth_type = f"oauth2{self.auth.flow_type}"
+            self.auth.flow_enum = FLOW_TYPES.get(self.auth.flow_type)
 
         if has_app_context():
             args = (self.prefix, self.auth)

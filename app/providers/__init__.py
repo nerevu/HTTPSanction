@@ -245,6 +245,10 @@ class Authentication:
     debug: Optional[bool]
     """URL to API reference documentation"""
     documentation_url: Optional[str]
+    """OAuth2 flow enum"""
+    flow_enum: Optional[int]
+    """OAuth2 flow type"""
+    flow_type: Optional[str]
     """HTTP headers to include with requests (case sensitive)"""
     headers: Optional[Headers]
     """Allow headless authentication"""
@@ -262,6 +266,8 @@ class Authentication:
     redirect_uri: Optional[str]
     """API OAuth token refresh URL (defaults to the `tokenURL`)"""
     refresh_url: Optional[str]
+    """OAuth2 flow requires basic authentication"""
+    requires_basic_auth: Optional[bool]
     """The API permissions scope"""
     scope: Optional[List[str]]
     """API OAuth token URL"""
@@ -292,6 +298,8 @@ class Authentication:
         documentation_url = from_union(
             [from_none, from_str], obj.get("documentationURL")
         )
+        flow_enum = from_union([from_int, from_none], obj.get("flowEnum"))
+        flow_type = from_union([from_none, from_str], obj.get("flowType"))
         headers = from_union([Headers.from_dict, from_none], obj.get("headers"))
         headless = from_union([from_bool, from_none], obj.get("headless"))
         headless_elements = from_union(
@@ -312,6 +320,9 @@ class Authentication:
         password = from_union([from_none, from_str], obj.get("password"))
         redirect_uri = from_union([from_none, from_str], obj.get("redirectURI"))
         refresh_url = from_union([from_none, from_str], obj.get("refreshURL"))
+        requires_basic_auth = from_union(
+            [from_bool, from_none], obj.get("requiresBasicAuth")
+        )
         scope = from_union(
             [lambda x: from_list(from_str, x), from_none], obj.get("scope")
         )
@@ -326,6 +337,8 @@ class Authentication:
             client_secret,
             debug,
             documentation_url,
+            flow_enum,
+            flow_type,
             headers,
             headless,
             headless_elements,
@@ -335,6 +348,7 @@ class Authentication:
             password,
             redirect_uri,
             refresh_url,
+            requires_basic_auth,
             scope,
             token_url,
             username,
@@ -362,6 +376,8 @@ class Authentication:
         result["documentationURL"] = from_union(
             [from_none, from_str], self.documentation_url
         )
+        result["flowEnum"] = from_union([from_int, from_none], self.flow_enum)
+        result["flowType"] = from_union([from_none, from_str], self.flow_type)
         result["headers"] = from_union(
             [lambda x: to_class(Headers, x), from_none], self.headers
         )
@@ -384,6 +400,9 @@ class Authentication:
         result["password"] = from_union([from_none, from_str], self.password)
         result["redirectURI"] = from_union([from_none, from_str], self.redirect_uri)
         result["refreshURL"] = from_union([from_none, from_str], self.refresh_url)
+        result["requiresBasicAuth"] = from_union(
+            [from_bool, from_none], self.requires_basic_auth
+        )
         result["scope"] = from_union(
             [lambda x: from_list(from_str, x), from_none], self.scope
         )

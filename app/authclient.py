@@ -14,6 +14,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Union
 from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse
+from enum import Enum, auto
 
 import pygogo as gogo
 import requests
@@ -28,8 +29,13 @@ from flask import (
     session,
     url_for,
 )
-from oauthlib.oauth2 import TokenExpiredError
-from requests.auth import AuthBase
+from oauthlib.oauth2 import (
+    TokenExpiredError,
+    LegacyApplicationClient,
+    BackendApplicationClient,
+    MobileApplicationClient,
+)
+from requests.auth import AuthBase, HTTPBasicAuth
 from requests_oauthlib import OAuth1Session, OAuth2Session
 from requests_oauthlib.oauth1_session import TokenRequestDenied
 
@@ -183,6 +189,21 @@ class OAuth2BaseClient(BaseClient):
         self.realm_id = cache.get(f"{self.prefix}_realm_id")
 
 
+class FlowTypes(Enum):
+    WEB = auto()
+    LEGACY = auto()
+    BACKEND = auto()
+    MOBILE = auto()
+
+
+FLOW_TYPES = {
+    "web": FlowTypes.WEB,
+    "legacy": FlowTypes.LEGACY,
+    "backend": FlowTypes.BACKEND,
+    "mobile": FlowTypes.MOBILE,
+}
+
+
 @dataclass
 class OAuth2Client(OAuth2BaseClient):
     revoke_url: str = ""
@@ -203,21 +224,44 @@ class OAuth2Client(OAuth2BaseClient):
     def _init_credentials(self):
         # TODO: check to make sure the token gets renewed on realtime_data call
         # See how it works
-        try:
-            self.oauth_session = OAuth2Session(self.client_id, **self.oauth_kwargs)
-        except TokenExpiredError:
-            # this path shouldn't be reached...
-            logger.warning(f"{self.prefix} token expired. Attempting to renew...")
-            self.renew_token("TokenExpiredError")
-        except Exception as e:
-            self.error = f"{self.prefix} error authenticating: {str(e)}"
+        self.error = ""
+        args, kwargs = (), {}
+
+        if self.flow_enum == FlowTypes.WEB:
+            # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html
+            args = (self.client_id,)
+            kwargs = self.oauth_kwargs
+        elif self.flow_enum == FlowTypes.LEGACY:
+            # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html#legacy-application-flow
+            args = ()
+            kwargs = {"client": LegacyApplicationClient(client_id=self.client_id)}
+        elif self.flow_enum == FlowTypes.BACKEND:
+            # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html#backend-application-flow
+            kwargs = {"client": BackendApplicationClient(client_id=self.client_id)}
+        elif self.flow_enum == FlowTypes.MOBILE:
+            # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html#mobile-application-flow
+            kwargs = {"client": MobileApplicationClient(client_id=self.client_id)}
         else:
-            if self.verified:
-                self.error = ""
-                logger.debug(f"{self.prefix} successfully authenticated!")
+            self.error = f"flow_type {self.flow_type} must be one of {list(FLOW_TYPES)}"
+
+        if not self.error:
+            try:
+                self.oauth_session = OAuth2Session(*args, **kwargs)
+            except TokenExpiredError:
+                # this path shouldn't be reached...
+                logger.warning(f"{self.prefix} token expired. Attempting to renew...")
+                self.renew_token("TokenExpiredError")
+            except Exception as e:
+                self.error = f"{self.prefix} error authenticating: {str(e)}"
             else:
-                logger.warning(f"{self.prefix} not authorized. Attempting to renew...")
-                self.renew_token("init")
+                if self.verified:
+                    self.error = ""
+                    logger.debug(f"{self.prefix} successfully authenticated!")
+                else:
+                    logger.warning(
+                        f"{self.prefix} not authorized. Attempting to renew..."
+                    )
+                    self.renew_token("init")
 
         if self.error:
             logger.error(self.error)
@@ -283,7 +327,7 @@ class OAuth2Client(OAuth2BaseClient):
 
     def fetch_token(self):
         kwargs = {"client_secret": self.client_secret}
-
+        isMobile = self.flow_enum == FlowTypes.MOBILE
         if request.args.get("code"):
             kwargs["code"] = request.args["code"]
         else:
@@ -294,8 +338,35 @@ class OAuth2Client(OAuth2BaseClient):
         except Exception as e:
             self.error = f"Failed to fetch token: {str(e)}"
             token = {}
+
+        if self.flow_enum == FlowTypes.LEGACY:
+            # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html#legacy-application-flow
+            kwargs = {
+                "username": self.username,
+                "password": self.password,
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+            }
+        elif self.flow_enum == FlowTypes.BACKEND and self.requires_basic_auth:
+            # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html#backend-application-flow
+            kwargs = {"auth": HTTPBasicAuth(self.client_id, self.client_secret)}
+        elif self.flow_enum == FlowTypes.BACKEND:
+            # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html#backend-application-flow
+            kwargs = {"client_id": self.client_id, "client_secret": self.client_secret}
+        elif isMobile:
+            # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html#mobile-application-flow
+            kwargs = {"client_id": self.client_id, "client_secret": self.client_secret}
         else:
-            self.error = ""
+            self.error = f"flow_type must be one of {list(FLOW_TYPES)}"
+
+        if isMobile and not self.error:
+            response = self.oauth_session.get(self.authorization_url)
+            token = self.oauth_session.token_from_fragment(response.url)
+        elif not self.error:
+            try:
+                token = self.oauth_session.fetch_token(self.token_url, **kwargs)
+            except Exception as e:
+                self.error = f"Failed to fetch token: {str(e)}"
 
         self.token = token
         return token
@@ -569,6 +640,9 @@ class BearerAuthClient(AuthClient):
 AVAILABLE_AUTHS = {
     "oauth1": OAuth1Client,
     "oauth2": OAuth2Client,
+    "oauth2web": OAuth2Client,
+    "oauth2backend": OAuth2Client,
+    "oauth2legacy": OAuth2Client,
     "bearer": BearerAuthClient,
     "basic": BasicAuthClient,
     "custom": AuthClient,
@@ -609,6 +683,7 @@ def get_auth_client(
             auth.headless = kwargs["headless"]
 
         client = MyAuthClient(prefix=prefix, state=state, **asdict(auth))
+        client.flow_enum = auth.flow_enum
         client.attrs = auth.attrs or {}
         client.params = auth.params or {}
 
