@@ -61,6 +61,7 @@ HEADERS = {"Accept": "application/json"}
 @dataclass
 class BaseClient(Authentication):
     prefix: str = ""
+    state: str = ""
     created_at: Union[dt, int, str] = field(default=dt.now(timezone.utc), init=False)
     error: str = field(default="", init=False)
     oauth_version: int = field(default=None, init=False)
@@ -90,7 +91,6 @@ class AuthClient(BaseClient):
 class OAuth2BaseClient(BaseClient):
     access_token: str = ""
     refresh_token: str = ""
-    state: str = ""
     realm_id: str = ""
     expires_at: dt = field(default=dt.now(timezone.utc), init=False)
     expires_in: int = field(default=0, init=False)
@@ -219,6 +219,7 @@ class OAuth2Client(OAuth2BaseClient):
         self.auth_type = "oauth2"
         self.extra = {"client_id": self.client_id, "client_secret": self.client_secret}
         self.restore()
+        logger.debug(f"redirect_uri is {self.redirect_uri}")
         self._init_credentials()
 
     def _init_credentials(self):
@@ -442,7 +443,7 @@ class OAuth2Client(OAuth2BaseClient):
 @dataclass
 class OAuth1Client(AuthClient):
     request_url: str = ""
-    oauth_version: int = field(default=2, init=False)
+    oauth_version: int = field(default=1, init=False)
     verified: bool = field(default=False, init=False)
     oauth_token: str = field(default=None, init=False)
     oauth_token_secret: str = field(default=None, init=False)
@@ -615,11 +616,8 @@ class BasicAuthClient(AuthClient):
 
 
 @dataclass
-class BearerAuth(AuthBase, Authentication):
+class BearerAuth(AuthBase):
     token: str = ""
-
-    def __post_init__(self):
-        super().__post_init__()
 
     def __call__(self, r):
         r.headers["authorization"] = f"Bearer {self.token}"
@@ -630,6 +628,7 @@ class BearerAuth(AuthBase, Authentication):
 class BearerAuthClient(AuthClient):
     token: str = ""
     auth: BearerAuth = field(init=False)
+    oauth_version: int = field(default=1, init=False)
 
     def __post_init__(self):
         super().__post_init__()
@@ -982,9 +981,7 @@ def get_redirect_url(
     state = json.get("state") or session.get(f"{prefix}_state")
     realm_id = json.get("realm_id") or session.get(f"{prefix}_realm_id")
     valid = state or all(map(json.get, ["oauth_token", "oauth_verifier", "org"]))
-    client = get_auth_client(
-        prefix, auth, state=state, realm_id=realm_id, **kwargs, **app.config
-    )
+    client = get_auth_client(prefix, auth, state=state, realm_id=realm_id, **app.config)
 
     if valid:
         session[f"{prefix}_state"] = client.state
@@ -1003,8 +1000,8 @@ def get_redirect_url(
     return redirect_url, client
 
 
-def callback(prefix: str, auth: Authentication = None, **kwargs):
-    redirect_url, client = get_redirect_url(prefix, auth, **kwargs)
+def callback(prefix: str, auth: Authentication = None):
+    redirect_url, client = get_redirect_url(prefix, auth)
 
     if client.error:
         json = {

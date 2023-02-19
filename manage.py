@@ -32,10 +32,13 @@ from app import create_app
 from app.helpers import configure, email_hdlr, exception_hook
 from app.providers import Provider, provider_from_dict
 from app.routes.api import (
-    augment_auth,
     create_blueprint_route,
     create_home_route,
     create_method_view_route,
+)
+
+from app.route_helpers import (
+    augment_auth,
     get_authentication,
     validate_providers,
 )
@@ -123,11 +126,12 @@ def parse_verbosity(verbose=0, quiet=None):
 @click.pass_context
 @pass_script_info
 def manager(script_info, ctx, verbose=0, quiet=False, **kwargs):
-    script_info.command = ctx.invoked_subcommand
+    subcommand = ctx.invoked_subcommand
+    cmd = ctx.command.get_command(ctx, subcommand)
+    args = ctx.meta.get(ARGS_KEY)
+    cmd.parse_args(ctx, args)
 
-    if ctx.invoked_subcommand == "run":
-        _run = ctx.command.get_command(ctx, "run")
-        _run.parse_args(ctx, ctx.meta.get(ARGS_KEY))
+    if subcommand == "run":
         script_info.port = ctx.params["port"]
         environ["PORT"] = str(script_info.port)
 

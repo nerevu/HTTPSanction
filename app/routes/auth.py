@@ -23,7 +23,7 @@ from app.authclient import AuthClientTypes, callback, get_auth_client, FLOW_TYPE
 from app.helpers import flask_formatter as formatter, get_verbosity
 from app.providers import Authentication
 from app.routes import PatchedMethodView
-from app.utils import jsonify
+from app.utils import jsonify, get_links
 
 logger = gogo.Gogo(
     __name__, low_formatter=formatter, high_formatter=formatter, monolog=True
@@ -47,10 +47,19 @@ class BaseView(PatchedMethodView):
         self.verbosity = get_verbosity(**kwargs)
         logger.setLevel(LOG_LEVELS.get(self.verbosity))
 
+        if not self.auth.refresh_url:
+            self.auth.refresh_url = self.auth.token_url
+
+        if not self.auth.redirect_uri:
+            self.auth.redirect_uri = f"/{self.prefix}-callback"
+
         if not self.auth.flow_type:
             self.auth.flow_type = "web"
 
         api_url = kwargs.get("API_URL").format(app.config["PORT"], **kwargs)
+
+        if self.auth.redirect_uri.startswith("/") and api_url:
+            self.auth.redirect_uri = f"{api_url}{self.auth.redirect_uri}"
 
         if self.auth.flow_type in FLOW_TYPES and self.auth.auth_type == "oauth2":
             self.auth.auth_type = f"oauth2{self.auth.flow_type}"
@@ -74,9 +83,13 @@ class Auth(BaseView):
         using a URL with a few key OAuth parameters.
         """
         authorization_url = None
-        result = jsonify()
         cache.set(f"{self.prefix}_callback_url", request.args.get("callback_url"))
         client = self.client
+
+        json = {
+            "description": "Authenticates a user",
+            "links": get_links(app.url_map.iter_rules()),
+        }
 
         try:
             # https://gist.github.com/ib-lundgren/6507798#gistcomment-1006218
@@ -89,7 +102,14 @@ class Auth(BaseView):
             client.save()
 
         if client.verified and not client.expired:
-            json = {k: getattr(client, k) for k in ["token", "state", "realm_id"]}
+            for k in ["token", "state", "realm_id"]:
+                try:
+                    value = getattr(client, k)
+                except AttributeError:
+                    value = None
+
+                json.update({k: value})
+
             result = jsonify(**json)
         else:
             if client.oauth1:
@@ -100,6 +120,8 @@ class Auth(BaseView):
             if authorization_url:
                 logger.info("redirecting to %s", authorization_url)
                 result = redirect(authorization_url)
+            else:
+                result = jsonify(**json)
 
         return result
 
