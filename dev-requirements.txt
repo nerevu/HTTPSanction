@@ -1,10 +1,10 @@
-black>=20.8b1
+black<=20.8b1,<23.1.0
 tox>=3.14.3,<4.0.0
 coverage>=4.3.4,<5.0.0
 flake8>=3.7.9,<5.0.0
 flake8-black>=0.1.1,<0.3.0
 manage.py>=0.2.10,<0.3.0
-pytest==4.3.0
+pytest>=4.3.0
 pylint>=2.5.0,<4.0.0
 pkutils>=1.1.1,<2.0.0
 setuptools>=42.0.2

@@ -192,7 +192,7 @@ def _eslint(where, strict):
     """Check json syntax with eslint"""
     where = where or DEF_JSON_WHERE
     paths = list(chain(*map(glob, where.split(" "))))
-    check_call(["eslint"] + paths + ["--ext", ".json"])
+    check_call(["npx", "eslint"] + paths + ["--ext", ".json"])
 
 
 def _black(where):
