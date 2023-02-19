@@ -587,13 +587,13 @@ def get_auth_client(
     prefix: str,
     auth: Authentication = None,
     state: str = None,
-    verbose: int = 0,
-    api_url: str = "",
+    VERBOSITY: str = None,
     **kwargs,
 ) -> AuthClientTypes:
-    logger.setLevel(LOG_LEVELS[verbose])
     auth_type = auth.auth_type
     auth_client_name = f"{prefix}_{auth_type}_auth_client"
+    verbosity = get_verbosity(VERBOSITY, auth.debug)
+    logger.setLevel(LOG_LEVELS.get(verbosity))
 
     if auth_client_name not in g:
         MyAuthClient = AVAILABLE_AUTHS[auth_type]
@@ -723,7 +723,7 @@ def get_json_error(url, result):
     return json
 
 
-def debug_header(result):
+def debug_header(result, verbose=False):
     logger.debug({k: v[:32] for k, v in result.request.headers.items()})
     body = result.request.body or ""
 

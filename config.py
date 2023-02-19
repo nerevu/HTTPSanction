@@ -118,7 +118,7 @@ class Config(object):
 
     # Variables warnings
     REQUIRED_SETTINGS = []
-    OPTIONAL_SETTINGS = []
+    OPTIONAL_SETTINGS = ["VERBOSITY"]
     REQUIRED_PROD_SETTINGS = [SECRET_ENV]
 
     # Logging

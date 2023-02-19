@@ -108,6 +108,11 @@ def get_collection(prefix, collection="", **kwargs):
     return Collection
 
 
+def get_verbosity(verbosity="", debug=False, **kwargs):
+    def_verbosity = "3" if debug else "1"
+    return int(verbosity or def_verbosity)
+
+
 def exception_hook(etype, value, tb, debug=False, callback=None, **kwargs):
     exception = format_exception(etype, value, tb)
 

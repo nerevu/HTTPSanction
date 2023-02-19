@@ -94,6 +94,17 @@ class HookGroup(FlaskGroup):
         return super().invoke(ctx)
 
 
+def parse_verbosity(verbose=0, quiet=None):
+    if quiet:
+        verbosity = "0"
+    elif verbose:
+        verbosity = str(verbose)
+    else:
+        verbosity = ""
+
+    return verbosity
+
+
 @click.group(
     cls=HookGroup, create_app=create_app, context_settings=CLICK_COMMAND_SETTINGS
 )
@@ -108,12 +119,13 @@ class HookGroup(FlaskGroup):
 @click.option(
     "-v",
     "--verbose",
-    help="Specify multiple times to increase logging verbosity",
+    help="Specify multiple times to increase logging verbosity (overridden by -q)",
     count=True,
 )
+@click.option("-q", "--quiet", help="Only log errors (overrides -v)", is_flag=True)
 @click.pass_context
 @pass_script_info
-def manager(script_info, ctx, verbose=0, **kwargs):
+def manager(script_info, ctx, verbose=0, quiet=False, **kwargs):
     script_info.command = ctx.invoked_subcommand
 
     if ctx.invoked_subcommand == "run":
@@ -139,7 +151,7 @@ def manager(script_info, ctx, verbose=0, **kwargs):
     configure(flask_config, **kwargs)
     script_info.flask_config = flask_config
 
-    environ["VERBOSE"] = str(verbose)
+    environ["VERBOSITY"] = parse_verbosity(verbose, quiet)
 
     if flask_config.get("ENV"):
         environ["FLASK_ENV"] = flask_config["ENV"]

@@ -38,26 +38,25 @@ DATA_DIR = APP_DIR.joinpath("data")
 @dataclass
 class BaseView(PatchedMethodView):
     auth: Authentication = field(default=None, kw_only=True, repr=False)
-    verbose: int = field(default=0, converter=int, kw_only=True, repr=False)
     methods: list[str] = field(factory=list, kw_only=True, repr=False)
     client: AuthClientTypes = field(init=False, repr=False)
 
-    def __attrs_post_init__(self):
+    def __attrs_post_init__(self, **kwargs):
         super().__attrs_post_init__()
         self.methods = self.methods or ["GET"]
-        self.verbose = self.verbose or 0
-        logger.setLevel(LOG_LEVELS[self.verbose])
+        self.verbosity = get_verbosity(**kwargs)
+        logger.setLevel(LOG_LEVELS.get(self.verbosity))
+
+        api_url = kwargs.get("API_URL")
 
         if has_app_context():
             args = (self.prefix, self.auth)
-            kwargs = {"verbose": self.verbose, "api_url": self.kwargs["api_url"]}
-            self.client = get_auth_client(*args, **kwargs)
+            self.client = get_auth_client(*args, **app.config, **kwargs)
 
 
 class Callback(BaseView):
     def get(self):
-        kwargs = {"verbose": self.verbose, "api_url": self.kwargs["api_url"]}
-        return callback(self.prefix, self.auth, **kwargs)
+        return callback(self.prefix, self.auth)
 
 
 class Auth(BaseView):
