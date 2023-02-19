@@ -101,7 +101,7 @@ class Config(object):
     SEND_FILE_MAX_AGE_DEFAULT = ROUTE_TIMEOUT
     EMPTY_TIMEOUT = ROUTE_TIMEOUT * 10
     API_URL_PREFIX = "/v1"
-    API_URL = "http://localhost:{port}{API_URL_PREFIX}"
+    API_URL = "http://localhost:{0}{API_URL_PREFIX}"
     SECRET_KEY = SECRET = getenv(SECRET_ENV, urandom(24))
 
     APP_CONFIG_WHITELIST = {
@@ -118,7 +118,7 @@ class Config(object):
 
     # Variables warnings
     REQUIRED_SETTINGS = []
-    OPTIONAL_SETTINGS = []
+    OPTIONAL_SETTINGS = ["VERBOSITY", "PORT"]
     REQUIRED_PROD_SETTINGS = [SECRET_ENV]
 
     # Logging
