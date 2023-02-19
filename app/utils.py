@@ -555,7 +555,7 @@ def extract_field(record, field, **kwargs):
     if len(split_field) > 1:
         real_field, _pos, rest = split_field[0], split_field[1], split_field[2:]
         pos, rest0 = _pos.split("]")
-        values = item.get(real_field, [])
+        values = item.get(real_field) or []
 
         try:
             value = values[int(pos)]
