@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/nerevu/rorschach/master/app/schemas/attribute.schema.json",
+  "$id": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/attribute.schema.json",
   "title": "Attribute",
-  "description": "Rorschach attribute",
+  "description": "Authentication attribute",
   "type": "object",
   "additionalProperties": {
     "oneOf": [
@@ -17,56 +17,6 @@
       {
         "type": "boolean",
         "default": false
-      },
-      {
-        "type": "object",
-        "default": {},
-        "additionalProperties": false,
-        "properties": {
-          "path": {
-            "description": "Path to the attribute relative to the Status resource json response",
-            "type": "string",
-            "default": "",
-            "examples": [
-              "result[0].tenantId"
-            ]
-          },
-          "conditional": {
-            "description": "description",
-            "type": "object",
-            "default": {},
-            "additionalProperties": false,
-            "properties": {
-              "test": {
-                "description": "description",
-                "type": "string",
-                "default": "",
-                "examples": [
-                  "rid"
-                ]
-              },
-              "results": {
-                "description": "description",
-                "type": "array",
-                "default": [],
-                "items": {
-                  "type": "string",
-                  "default": "",
-                  "examples": [
-                    "items",
-                    "list"
-                  ]
-                }
-              }
-            }
-          },
-          "func": {
-            "description": "Function to apply to the Status resource json response",
-            "type": "string",
-            "default": "",
-            "examples": []
-          }
-        }
       }
     ]
   }

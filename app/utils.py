@@ -455,14 +455,44 @@ def get_links(rules):
     return sorted(links, key=lambda link: link["href"])
 
 
-def parse_request(app=None):
-    args = request.args.to_dict()
+def parse_kwargs(app):
     form = request.form or {}
-    json = request.get_json(force=True, silent=True) or {}
+    args = request.args.to_dict()
+    _kwargs = {**form, **args}
+    kwargs = {k: parse(v) for k, v in _kwargs.items()}
+
+    with app.app_context():
+        for k, v in app.config.items():
+            if k in APP_CONFIG_WHITELIST:
+                kwargs.setdefault(k.lower(), v)
+
+    return kwargs
+
+
+def gen_config(app):
+    with app.app_context():
+        for k, v in app.config.items():
+            if k in APP_CONFIG_WHITELIST:
+                yield (k.lower(), v)
+
+
+# https://stackoverflow.com/a/1176023/408556
+def camel_to_snake_case(name):
+    return PASCAL_PATTERN.sub("-", name).lower()
+
+
+def snake_to_pascal_case(text: str) -> str:
+    return "".join(word.title() for word in text.split("_"))
+
+
+def parse_request(app=None):
+    args = request.args.to_dict() or {}
+    form = request.form or {}
 
     if form and "json" not in get_mimetype():
         form = loads(list(form)[0])
 
+    json = request.get_json(force=True, silent=True) or {}
     _kwargs = {**args, **form, **json}
     kwargs = {camel_to_snake_case(k): parse(v) for k, v in _kwargs.items()}
 
@@ -475,20 +505,8 @@ def parse_request(app=None):
     return kwargs
 
 
-def gen_config(app):
-    with app.app_context():
-        for k, v in app.config.items():
-            if k in APP_CONFIG_WHITELIST:
-                yield (k.lower(), v)
-
-
 def hash_text(**kwargs):
     return get_hash("{email}:{list}:{secret}".format(**kwargs))
-
-
-# https://stackoverflow.com/a/1176023/408556
-def camel_to_snake_case(name):
-    return PASCAL_PATTERN.sub("-", name).lower()
 
 
 def verify(hash="", **kwargs):
@@ -555,7 +573,7 @@ def extract_field(record, field, **kwargs):
     if len(split_field) > 1:
         real_field, _pos, rest = split_field[0], split_field[1], split_field[2:]
         pos, rest0 = _pos.split("]")
-        values = item.get(real_field, [])
+        values = item.get(real_field) or []
 
         try:
             value = values[int(pos)]

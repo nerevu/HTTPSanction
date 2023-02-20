@@ -9,7 +9,7 @@ import pygogo as gogo
 from attr import dataclass, field
 from faker import Faker
 from flask import current_app as app, request
-from flask.views import MethodView, View
+from flask.views import MethodView
 
 from app import cache
 from app.helpers import flask_formatter as formatter
@@ -46,7 +46,7 @@ class PatchedMethodView(MethodView):
         return MethodView.dispatch_request(self, *args, **kwargs)
 
     def __attrs_post_init__(self):
-        dash_class = camel_to_snake_case("-", type(self).__name__)
+        dash_class = camel_to_snake_case(type(self).__name__)
 
         if self.prefix:
             self.lowered = self.prefix.lower()

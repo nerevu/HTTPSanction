@@ -1,0 +1,26 @@
+{
+  "prefix": "mailgun",
+  "auths": [
+    {
+      "authId": "base",
+      "authType": "basic",
+      "documentationURL": "https://documentation.mailgun.com/en/latest/api_reference.html",
+      "username": "api",
+      "password": "$MAILGUN_API_KEY",
+      "attrs": {
+        "domain": "$MAILGUN_DOMAIN"
+      }
+    },
+    {
+      "authId": "server",
+      "parent": "base",
+      "apiBaseURL": "https://api.mailgun.net/v3/{domain}"
+    },
+    {
+      "authId": "account",
+      "parent": "base",
+      "isDefault": true,
+      "apiBaseURL": "https://api.mailgun.net/v3"
+    }
+  ]
+}

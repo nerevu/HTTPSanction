@@ -7,19 +7,20 @@
 """
 from dataclasses import asdict, dataclass, field
 from datetime import datetime as dt, timedelta, timezone
+from enum import Enum, auto
 from functools import partial
 from itertools import chain
-from json import JSONDecodeError, load
-from pathlib import Path
+from json import JSONDecodeError
+from random import uniform
+from shlex import quote
 from tempfile import NamedTemporaryFile
+from time import sleep
 from typing import Union
 from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse
 
-import boto3
 import pygogo as gogo
 import requests
 
-from botocore.exceptions import ProfileNotFound
 from flask import (
     after_this_request,
     current_app as app,
@@ -30,18 +31,23 @@ from flask import (
     session,
     url_for,
 )
-from google.auth.transport.requests import Request
-from google.oauth2.service_account import Credentials
-from oauthlib.oauth2 import TokenExpiredError
-from requests.auth import AuthBase
+from oauthlib.oauth2 import (
+    BackendApplicationClient,
+    LegacyApplicationClient,
+    MobileApplicationClient,
+    TokenExpiredError,
+)
+from requests.auth import AuthBase, HTTPBasicAuth
+from requests.exceptions import ChunkedEncodingError, ConnectionError
+from requests.models import Request
 from requests_oauthlib import OAuth1Session, OAuth2Session
 from requests_oauthlib.oauth1_session import TokenRequestDenied
 
 from app import LOG_LEVELS, cache
 from app.headless import headless_auth
-from app.helpers import flask_formatter as formatter
+from app.helpers import flask_formatter as formatter, get_verbosity
 from app.providers import Authentication
-from app.utils import get_links, jsonify, uncache_header
+from app.utils import delete_cache, get_links, jsonify, uncache_header
 from config import Config
 
 logger = gogo.Gogo(
@@ -56,9 +62,10 @@ RENEW_TIME = 60
 HEADERS = {"Accept": "application/json"}
 
 
-@dataclass
+@dataclass(repr=False)
 class BaseClient(Authentication):
     prefix: str = ""
+    state: str = ""
     created_at: Union[dt, int, str] = field(default=dt.now(timezone.utc), init=False)
     error: str = field(default="", init=False)
     oauth_version: int = field(default=None, init=False)
@@ -67,7 +74,7 @@ class BaseClient(Authentication):
         self.auth_type = "custom"
 
     def __repr__(self):
-        return f"{self.prefix} {self.auth_type}"
+        return f"{self.prefix} <{self.auth_id}:{self.auth_type}>"
 
     @property
     def oauth1(self):
@@ -78,19 +85,17 @@ class BaseClient(Authentication):
         return self.oauth_version == 2
 
 
-@dataclass
+@dataclass(repr=False)
 class AuthClient(BaseClient):
     verified: bool = True
     expired: bool = False
 
 
-@dataclass
+@dataclass(repr=False)
 class OAuth2BaseClient(BaseClient):
     access_token: str = ""
     refresh_token: str = ""
-    state: str = ""
     realm_id: str = ""
-    tenant_id: str = ""
     expires_at: dt = field(default=dt.now(timezone.utc), init=False)
     expires_in: int = field(default=0, init=False)
     oauth_version: int = field(default=2, init=False)
@@ -167,7 +172,6 @@ class OAuth2BaseClient(BaseClient):
         cache.set(f"{self.prefix}_created_at", self.created_at)
         cache.set(f"{self.prefix}_expires_at", self.expires_at)
         cache.set(f"{self.prefix}_realm_id", self.realm_id)
-        cache.set(f"{self.prefix}_tenant_id", self.tenant_id)
 
     def restore(self):
         logger.debug(f"restoring {self}")
@@ -187,10 +191,24 @@ class OAuth2BaseClient(BaseClient):
         self.expires_at = cache.get(f"{self.prefix}_expires_at") or def_expires_at
         self.expires_in = (self.expires_at - dt.now(timezone.utc)).total_seconds()
         self.realm_id = cache.get(f"{self.prefix}_realm_id")
-        self.tenant_id = cache.get(f"{self.prefix}_tenant_id")
 
 
-@dataclass
+class FlowTypes(Enum):
+    WEB = auto()
+    LEGACY = auto()
+    BACKEND = auto()
+    MOBILE = auto()
+
+
+FLOW_TYPES = {
+    "web": FlowTypes.WEB,
+    "legacy": FlowTypes.LEGACY,
+    "backend": FlowTypes.BACKEND,
+    "mobile": FlowTypes.MOBILE,
+}
+
+
+@dataclass(repr=False)
 class OAuth2Client(OAuth2BaseClient):
     revoke_url: str = ""
     account_id: str = ""
@@ -205,37 +223,58 @@ class OAuth2Client(OAuth2BaseClient):
         self.auth_type = "oauth2"
         self.extra = {"client_id": self.client_id, "client_secret": self.client_secret}
         self.restore()
+        logger.debug(f"redirect_uri is {self.redirect_uri}")
         self._init_credentials()
 
     def _init_credentials(self):
         # TODO: check to make sure the token gets renewed on realtime_data call
         # See how it works
-        try:
-            self.oauth_session = OAuth2Session(self.client_id, **self.oauth_kwargs)
-        except TokenExpiredError:
-            # this path shouldn't be reached...
-            logger.warning(f"{self.prefix} token expired. Attempting to renew...")
-            self.renew_token("TokenExpiredError")
-        except Exception as e:
-            self.error = f"{self.prefix} error authenticating: {str(e)}"
+        self.error = ""
+        args, kwargs = (), {}
+
+        if self.flow_enum == FlowTypes.WEB:
+            # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html
+            args = (self.client_id,)
+            kwargs = self.oauth_kwargs
+        elif self.flow_enum == FlowTypes.LEGACY:
+            # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html#legacy-application-flow
+            args = ()
+            kwargs = {"client": LegacyApplicationClient(client_id=self.client_id)}
+        elif self.flow_enum == FlowTypes.BACKEND:
+            # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html#backend-application-flow
+            kwargs = {"client": BackendApplicationClient(client_id=self.client_id)}
+        elif self.flow_enum == FlowTypes.MOBILE:
+            # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html#mobile-application-flow
+            kwargs = {"client": MobileApplicationClient(client_id=self.client_id)}
         else:
-            if self.verified:
-                self.error = ""
-                logger.debug(f"{self.prefix} successfully authenticated!")
+            self.error = f"flow_type {self.flow_type} must be one of {list(FLOW_TYPES)}"
+
+        if not self.error:
+            try:
+                self.oauth_session = OAuth2Session(*args, **kwargs)
+            except TokenExpiredError:
+                # this path shouldn't be reached...
+                logger.warning(f"{self.prefix} token expired. Attempting to renew...")
+                self.renew_token("TokenExpiredError")
+            except Exception as e:
+                self.error = f"{self.prefix} error authenticating: {str(e)}"
             else:
-                logger.warning(f"{self.prefix} not authorized. Attempting to renew...")
-                self.renew_token("init")
+                if self.verified:
+                    self.error = ""
+                    logger.debug(f"{self.prefix} successfully authenticated!")
+                elif self.expires_in < RENEW_TIME:
+                    logger.warning(
+                        f"{self.prefix} token expired. Attempting to renew..."
+                    )
+                    self.renew_token("expired")
+                else:
+                    logger.warning(
+                        f"{self.prefix} not authorized. Attempting to renew..."
+                    )
+                    self.renew_token("init")
 
         if self.error:
             logger.error(self.error)
-
-    @property
-    def failed_or_tried_headless(self):
-        return self.failed_headless_auth or self.tried_headless_auth
-
-    @property
-    def headless_status(self):
-        return "failed" if self.failed_headless_auth else "succeeded"
 
     @property
     def restore_from_headless(self):
@@ -244,7 +283,7 @@ class OAuth2Client(OAuth2BaseClient):
     @property
     def can_headlessly_auth(self):
         auth_info = self.username and self.password and self.headless_elements
-        return auth_info and self.headless and not self.failed_or_tried_headless
+        return auth_info and self.headless and not self.tried_headless_auth
 
     @property
     def headless_kwargs(self):
@@ -285,24 +324,55 @@ class OAuth2Client(OAuth2BaseClient):
         return self.oauth_session.authorized if self.oauth_session else False
 
     @property
-    def authorization_url(self):
+    def authorization_and_state(self):
         return self.oauth_session.authorization_url(self.authorization_base_url)
 
+    @property
+    def authorization_url(self):
+        return self.authorization_and_state[0]
+
     def fetch_token(self):
-        kwargs = {"client_secret": self.client_secret}
+        token = {}
+        kwargs = {}
+        self.error = ""
+        isMobile = self.flow_enum == FlowTypes.MOBILE
 
-        if request.args.get("code"):
-            kwargs["code"] = request.args["code"]
-        else:
-            kwargs["authorization_response"] = request.url
+        if self.flow_enum == FlowTypes.WEB:
+            # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html
+            kwargs = {"client_secret": self.client_secret}
 
-        try:
-            token = self.oauth_session.fetch_token(self.token_url, **kwargs)
-        except Exception as e:
-            self.error = f"Failed to fetch token: {str(e)}"
-            token = {}
+            if request.args.get("code"):
+                kwargs["code"] = request.args["code"]
+            else:
+                kwargs["authorization_response"] = request.url
+        elif self.flow_enum == FlowTypes.LEGACY:
+            # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html#legacy-application-flow
+            kwargs = {
+                "username": self.username,
+                "password": self.password,
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+            }
+        elif self.flow_enum == FlowTypes.BACKEND and self.requires_basic_auth:
+            # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html#backend-application-flow
+            kwargs = {"auth": HTTPBasicAuth(self.client_id, self.client_secret)}
+        elif self.flow_enum == FlowTypes.BACKEND:
+            # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html#backend-application-flow
+            kwargs = {"client_id": self.client_id, "client_secret": self.client_secret}
+        elif isMobile:
+            # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html#mobile-application-flow
+            kwargs = {"client_id": self.client_id, "client_secret": self.client_secret}
         else:
-            self.error = ""
+            self.error = f"flow_type must be one of {list(FLOW_TYPES)}"
+
+        if isMobile and not self.error:
+            response = self.oauth_session.get(self.authorization_url)
+            token = self.oauth_session.token_from_fragment(response.url)
+        elif not self.error:
+            try:
+                token = self.oauth_session.fetch_token(self.token_url, **kwargs)
+            except Exception as e:
+                self.error = f"Failed to fetch token: {str(e)}"
 
         self.token = token
         return token
@@ -340,21 +410,21 @@ class OAuth2Client(OAuth2BaseClient):
         elif self.refresh_token:
             self.error = "No refresh_url provided!"
         elif self.can_headlessly_auth:
+            logger.info(f"No {self.prefix} refresh token present.")
             logger.info(f"Attempting to renew {self} using headless authentication")
-            url = self.authorization_url[0]
-            self.failed_headless_auth = headless_auth(
-                url, self.prefix, **self.headless_kwargs
-            )
-            self.tried_headless_auth = True
-        else:
-            error = f"No {self.prefix} refresh token present. Please re-authenticate!"
+            url = self.authorization_url
 
             if self.tried_headless_auth:
-                error += (
-                    f" Previous headless authentication attempt {self.headless_status}."
+                self.error = "Headless authentication attempt failed."
+            else:
+                self.tried_headless_auth = True
+                self.failed_headless_auth = headless_auth(
+                    url, self.prefix, **self.headless_kwargs
                 )
 
-            self.error = error
+            # TODO: fix this so it doesn't continue to re-authenticate normally
+        else:
+            logger.info(f"No {self.prefix} refresh token present.")
 
         return self
 
@@ -375,10 +445,10 @@ class OAuth2Client(OAuth2BaseClient):
         return json
 
 
-@dataclass
+@dataclass(repr=False)
 class OAuth1Client(AuthClient):
     request_url: str = ""
-    oauth_version: int = field(default=2, init=False)
+    oauth_version: int = field(default=1, init=False)
     verified: bool = field(default=False, init=False)
     oauth_token: str = field(default=None, init=False)
     oauth_token_secret: str = field(default=None, init=False)
@@ -475,8 +545,7 @@ class OAuth1Client(AuthClient):
     @property
     def authorization_url(self):
         query_string = {"oauth_token": self.oauth_token}
-        authorization_url = f"{self.authorization_base_url}?{urlencode(query_string)}"
-        return (authorization_url, False)
+        return f"{self.authorization_base_url}?{urlencode(query_string)}"
 
     def fetch_token(self):
         kwargs = {"verifier": request.args["oauth_verifier"]}
@@ -540,7 +609,7 @@ class OAuth1Client(AuthClient):
         self._init_credentials()
 
 
-@dataclass
+@dataclass(repr=False)
 class BasicAuthClient(AuthClient):
     auth: tuple[str, str] = field(init=False)
 
@@ -550,22 +619,20 @@ class BasicAuthClient(AuthClient):
         self.auth = (self.username, self.password)
 
 
-@dataclass
-class BearerAuth(AuthBase, Authentication):
+@dataclass(repr=False)
+class BearerAuth(AuthBase):
     token: str = ""
-
-    def __post_init__(self):
-        super().__post_init__()
 
     def __call__(self, r):
         r.headers["authorization"] = f"Bearer {self.token}"
         return r
 
 
-@dataclass
+@dataclass(repr=False)
 class BearerAuthClient(AuthClient):
     token: str = ""
     auth: BearerAuth = field(init=False)
+    oauth_version: int = field(default=1, init=False)
 
     def __post_init__(self):
         super().__post_init__()
@@ -573,167 +640,13 @@ class BearerAuthClient(AuthClient):
         self.auth = BearerAuth(self.token)
 
 
-@dataclass
-class BotoAuthClient(AuthClient):
-    profile_name: str = ""
-    aws_access_key_id: str = ""
-    aws_secret_access_key: str = ""
-    region_name: str = ""
-    _session: boto3.Session = field(init=False)
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.auth_type = "boto"
-        self._init_credentials()
-
-    @property
-    def kwargs(self):
-        return {
-            "aws_access_key_id": self.aws_access_key_id,
-            "aws_secret_access_key": self.aws_secret_access_key,
-            "region_name": self.region_name,
-        }
-
-    @property
-    def session(self):
-        if not self._session:
-            try:
-                _session = boto3.Session(profile_name=self.profile_name)
-            except ProfileNotFound:
-                _session = boto3.Session(**self.kwargs)
-                logger.debug("Loaded session from config.")
-            else:
-                logger.debug(f"Loaded session from profile {self.profile_name}.")
-
-            self._session = _session
-
-        return self._session
-
-    def _init_credentials(self):
-        self.session
-
-
-@dataclass
-class ServiceAuthClient(OAuth2BaseClient):
-    keyfile_path: str = ""
-    private_key: str = field(init=False)
-    auth_provider_x509_cert_url: str = field(init=False)
-    client_x509_cert_url: str = field(init=False)
-    project_id: str = field(init=False)
-    client_email: str = field(init=False)
-    token_uri: str = field(init=False)
-    token_type: str = field(default="service", init=False)
-    _info: dict = field(init=False)
-    _credentials: Credentials = field(init=False)
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.auth_type = "service"
-        self.restore()
-        self._init_credentials()
-
-    def save(self):
-        super().save()
-        cache.set(f"{self.prefix}_scopes", self.credentials.scopes)
-        cache.set(f"{self.prefix}_project_id", self.credentials.project_id)
-        cache.set(f"{self.prefix}_client_email", self.credentials.service_account_email)
-        cache.set(f"{self.prefix}_token_uri", self.credentials._token_uri)
-        cache.set(f"{self.prefix}_private_key", self.private_key)
-
-    def restore(self):
-        super().restore()
-        self.project_id = cache.get(f"{self.prefix}_project_id")
-        self.client_email = cache.get(f"{self.prefix}_client_email")
-        self.token_uri = cache.get(f"{self.prefix}_token_uri")
-        self.private_key = cache.get(f"{self.prefix}_private_key")
-        self.scope = cache.get(f"{self.prefix}_scopes") or self.scope
-
-    def _init_credentials(self):
-        if not self.credentials:
-            p = Path(self.keyfile_path)
-            logger.debug(f"Loading {self.prefix} keyfile from {p}...")
-
-            with p.open() as f:
-                self._info = load(f)
-                self.private_key = self._info["private_key"]
-
-        if self.expired:
-            logger.warning(f"{self.prefix} token expired. Attempting to renew...")
-            self.renew_token("TokenExpiredError")
-        elif self.verified:
-            logger.debug(f"{self.prefix} successfully authenticated!")
-        else:
-            logger.warning(f"{self.prefix} not authorized. Attempting to renew...")
-            self.renew_token("init")
-
-        if self.error:
-            logger.error(self.error)
-
-    @property
-    def info(self):
-        if not self._info:
-            self._info = {
-                "private_key": self.private_key,
-                "project_id": self.project_id,
-                "client_email": self.client_email,
-                "token_uri": self.token_uri,
-            }
-
-        return self._info
-
-    @property
-    def credentials(self):
-        if not self._credentials:
-            try:
-                self._credentials = Credentials.from_service_account_info(
-                    self.info, scopes=self.scope
-                )
-            except Exception as e:
-                logger.warning(f"{self.prefix} info invalid: {e}.")
-
-        return self._credentials
-
-    @property
-    def verified(self):
-        return self.credentials.valid
-
-    @property
-    def _token(self):
-        return {
-            "access_token": self.credentials.token,
-            "expires_at": self.credentials.expiry.replace(tzinfo=timezone.utc),
-        }
-
-    def fetch_token(self):
-        self.token = self._token
-        return self._token
-
-    def renew_token(self, source):
-        logger.debug("Renewing {self} token from {source} using credentials refresh…")
-        self.credentials.refresh(Request())
-
-        if self.verified:
-            self.error = ""
-            self.token = self._token
-        else:
-            logger.debug("Failed to renew, re-authenticating…")
-            self.fetch_token()
-
-            if self.verified:
-                logger.debug(f"Successfully renewed {self}!")
-                self.token = self._token
-            else:
-                self.error = f"Failed to renew {self}: Please re-authenticate!"
-
-        return self
-
-
 AVAILABLE_AUTHS = {
     "oauth1": OAuth1Client,
     "oauth2": OAuth2Client,
-    "service": ServiceAuthClient,
+    "oauth2web": OAuth2Client,
+    "oauth2backend": OAuth2Client,
+    "oauth2legacy": OAuth2Client,
     "bearer": BearerAuthClient,
-    "boto": BotoAuthClient,
     "basic": BasicAuthClient,
     "custom": AuthClient,
 }
@@ -741,63 +654,61 @@ AVAILABLE_AUTHS = {
 AuthClientTypes = Union[
     OAuth1Client,
     OAuth2Client,
-    ServiceAuthClient,
     BearerAuthClient,
-    BotoAuthClient,
     BasicAuthClient,
     AuthClient,
 ]
+
+
+# https://github.com/ofw/curlify
+def request_to_curl_args(request):
+    try:
+        _request = request.request
+    except AttributeError:
+        _request = request
+
+    yield from ("-X", _request.method)
+
+    for k, v in sorted(request.headers.items()):
+        yield from ("-H", f"{k}: {v}")
+
+    if body := _request.body:
+        yield from ("-d", body.decode("utf-8") if isinstance(body, bytes) else body)
+
+
+def args_to_curl_args(method, params=None, data=None, json=None, headers=None):
+    yield from ("-X", method.upper())
+
+    if headers:
+        for k, v in sorted(headers.items()):
+            yield from ("-H", f"{k}: {v}")
+
+    if body := request.body:
+        yield from ("-d", body.decode("utf-8") if isinstance(body, bytes) else body)
+
+
+def request_to_curl(request):
+    args = " ".join(map(quote, request_to_curl_args(request)))
+    return f"curl {args} {request.url}"
 
 
 def get_auth_client(
     prefix: str,
     auth: Authentication = None,
     state: str = None,
-    verbose: int = 0,
-    api_url: str = "",
+    VERBOSITY: str = None,
     **kwargs,
 ) -> AuthClientTypes:
-    logger.setLevel(LOG_LEVELS[verbose])
-    auth_client_name = f"{prefix}_{auth.auth_id}_auth_client"
+    verbosity = get_verbosity(VERBOSITY, auth.debug)
+    logger.setLevel(LOG_LEVELS.get(verbosity))
+    auth_client_name = f"{prefix}_auth_client"
 
     if auth_client_name not in g:
-        auth_type = auth.auth_type
-        MyAuthClient = AVAILABLE_AUTHS[auth_type]
-        redirect_uri = auth.redirect_uri or ""
-
-        if redirect_uri.startswith("/") and api_url:
-            auth.redirect_uri = f"{api_url}{redirect_uri}"
-
-        if "debug" in kwargs:
-            auth.debug = kwargs["debug"]
-
-        if "headless" in kwargs:
-            auth.headless = kwargs["headless"]
-
+        MyAuthClient = AVAILABLE_AUTHS[auth.auth_type]
         client = MyAuthClient(prefix=prefix, state=state, **asdict(auth))
-        client.attrs = auth.attrs or {}
-        client.params = auth.params or {}
-        client.param_map = auth.param_map or {}
-        client.method_map = auth.method_map or {}
-
-        try:
-            restore_from_headless = client.restore_from_headless
-        except AttributeError:
-            restore_from_headless = False
-
-        if restore_from_headless:
-            logger.debug("restoring client from headless session")
-            client.restore()
-            client.renew_token("headless")
-
         setattr(g, auth_client_name, client)
 
-    client = g.get(auth_client_name)
-
-    if client.oauth_version == 2 and client.expires_in < RENEW_TIME:
-        client.renew_token("expired")
-
-    return client
+    return g.get(auth_client_name)
 
 
 def get_quickbooks_error(**kwargs):
@@ -889,7 +800,7 @@ def get_json_error(url, result):
     return json
 
 
-def debug_header(result):
+def debug_header(result, verbose=False):
     logger.debug({k: v[:32] for k, v in result.request.headers.items()})
     body = result.request.body or ""
 
@@ -938,16 +849,18 @@ def is_ok(success_code=200, **kwargs):
     return (status_code, ok)
 
 
-def get_result(url, client, params=None, method="get", **kwargs):
-    params = params or {}
+def get_result(url, client, method="get", **kwargs):
+    params = kwargs.get("params") or {}
     data = kwargs.get("data") or {}
     json_data = kwargs.get("json") or {}
     def_headers = kwargs.get("headers") or {}
     all_headers = client.headers.get("all") or {}
     method_headers = client.headers.get(method) or {}
-    __headers = {**all_headers, **method_headers}
-    _headers = {k: v.format(**client.__dict__) for k, v in __headers.items()}
-    headers = {**HEADERS, **_headers, **def_headers}
+    _client_headers = {**all_headers, **method_headers}
+    client_headers = {
+        k: v.format(**client.__dict__) for k, v in _client_headers.items()
+    }
+    headers = {**HEADERS, **client_headers, **def_headers}
 
     try:
         requestor = client.oauth_session
@@ -956,12 +869,38 @@ def get_result(url, client, params=None, method="get", **kwargs):
 
     verb = getattr(requestor, method)
 
-    try:
-        verb = partial(verb, auth=client.auth)
-    except AttributeError:
-        pass
+    if client.auth:
+        try:
+            verb = partial(verb, auth=client.auth)
+        except AttributeError:
+            pass
 
-    return verb(url, params=params, data=data, json=json_data, headers=headers)
+    vkwargs = {}
+
+    if params:
+        vkwargs["params"] = params
+
+    if data:
+        vkwargs["data"] = data
+
+    if json_data:
+        vkwargs["json"] = json_data
+
+    result = verb(url, headers=headers, **vkwargs)
+
+    if result is None:
+        req = Request(
+            method=method.upper(),
+            url=url,
+            headers=headers,
+            data=data,
+            json=json_data,
+            params=params,
+        )
+
+        result = requestor.prepare_request(req)
+
+    return result
 
 
 def get_errors(result, _json):
@@ -988,15 +927,38 @@ def get_errors(result, _json):
     return json
 
 
-def get_json(url, client, params=None, method="get", success_code=200, **kwargs):
+def get_json(url, client, **kwargs):
+    result = None
+    params = kwargs.get("params")
+    method = kwargs["method"]
+    success_code = kwargs["success_code"]
+    retry_cnt = kwargs["retry_cnt"]
+    max_retries = kwargs["max_retries"]
+    init_backoff = kwargs["init_backoff"]
+
     try:
-        result = get_result(url, client, params=params, method=method, **kwargs)
+        result = get_result(url, client, method=method, params=params, **kwargs)
     except TokenExpiredError:
-        unscoped = False
-        result = None
+        ok = unscoped = False
         json = {"message": "Token Expired", "status_code": 401}
+    except (ChunkedEncodingError, ConnectionError) as e:
+        # https://github.com/psf/requests/issues/4771#issue-354077499
+        if retry_cnt < max_retries:
+            wait = init_backoff * 2 ** (retry_cnt + 1) + uniform(0, 2)
+            logger.info(f"Connection Closed. Waiting {wait} seconds...")
+            sleep(wait)
+            logger.debug("Done waiting!")
+            return get_json_response(
+                url, client, params=params, retry_cnt=retry_cnt + 1, **kwargs
+            )
+        else:
+            ok = unscoped = False
+            error = e.strerror or str(e)
+            message = f"{error}. Max tries of {max_retries + 1} reached."
+            json = {"message": message, "status_code": 408}
     else:
         unscoped = result.headers.get("WWW-Authenticate") == "insufficient_scope"
+        ok = result.ok
 
         try:
             json = result.json()
@@ -1009,16 +971,28 @@ def get_json(url, client, params=None, method="get", success_code=200, **kwargs)
 
     status_code, ok = is_ok(success_code, **json)
 
-    if (result is not None) and (not ok) and kwargs.get("debug"):
+    if result and not ok and kwargs.get("debug"):
         debug_header(result)
 
-    return (json, unscoped)
+    if result and not (ok or kwargs.get("message")):
+        json["message"] = f"{result.reason}."
+
+    return (json, unscoped, result)
 
 
-def get_json_response(url, client, params=None, renewed=False, **kwargs):
+def get_json_response(
+    url,
+    client,
+    retry_cnt=0,
+    init_backoff=1,
+    max_retries=5,
+    success_code=200,
+    method="get",
+    **kwargs,
+):
+    params = kwargs.get("params")
     unscoped = False
-    success_code = kwargs.get("success_code", 200)
-    method = kwargs.get("method", "get")
+    result = None
 
     if not client:
         json = {"message": "No client.", "status_code": 407}
@@ -1029,12 +1003,13 @@ def get_json_response(url, client, params=None, renewed=False, **kwargs):
     elif client.error:
         json = {"message": client.error, "status_code": 500}
     elif url:
-        json, unscoped = get_json(
+        json, unscoped, result = get_json(
             url,
             client,
-            params=params,
-            method=method,
             success_code=success_code,
+            max_retries=max_retries,
+            retry_cnt=retry_cnt,
+            init_backoff=init_backoff,
             **kwargs,
         )
     else:
@@ -1043,7 +1018,7 @@ def get_json_response(url, client, params=None, renewed=False, **kwargs):
     status_code, ok = is_ok(success_code, **json)
     json["ok"] = ok
 
-    if status_code in {400, 401} and not renewed:
+    if status_code in {400, 401} and not retry_cnt:
         debug_status(client, unscoped, **json)
 
         try:
@@ -1051,20 +1026,41 @@ def get_json_response(url, client, params=None, renewed=False, **kwargs):
         except AttributeError:
             pass
         else:
-            json = get_json_response(url, client, params=params, renewed=True, **kwargs)
+            json = get_json_response(url, client, params=params, retry_cnt=1, **kwargs)
+    elif status_code == 429:
+        # https://developer.xero.com/documentation/guides/oauth2/limits/
+        wait = result.headers.get("Retry-After") if result is not None else None
+
+        if wait and retry_cnt < max_retries:
+            # https://github.com/psf/requests/issues/2726
+            logger.info(f"Exceeded quota. Waiting {wait} seconds...")
+            sleep(int(wait))
+            logger.debug("Done waiting!")
+
+            return get_json_response(
+                url, client, params=params, retry_cnt=retry_cnt + 1, **kwargs
+            )
+        elif wait:
+            message = f" Max tries of {max_retries} reached."
+        else:
+            message = " No `Retry-After` given."
+
+        json["message"] += message
     elif ok and has_app_context():
         json["links"] = get_links(app.url_map.iter_rules())
     else:
         debug_json(client, url, method=method, **json)
 
+        if result is not None:
+            logger.info(request_to_curl(result))
+
     return json
 
 
 def get_redirect_url(
-    prefix: str, auth: Authentication = None, **kwargs
+    prefix: str, auth: Authentication = None
 ) -> tuple[str, AuthClientTypes]:
-
-    """Step 3: Retrieving an access token.
+    """Retrieve an access token.
 
     The user has been redirected back from the provider to your registered
     callback URL. With this redirection comes an authorization code included
@@ -1075,9 +1071,7 @@ def get_redirect_url(
     state = json.get("state") or session.get(f"{prefix}_state")
     realm_id = json.get("realm_id") or session.get(f"{prefix}_realm_id")
     valid = state or all(map(json.get, ["oauth_token", "oauth_verifier", "org"]))
-    client = get_auth_client(
-        prefix, auth, state=state, realm_id=realm_id, **kwargs, **app.config
-    )
+    client = get_auth_client(prefix, auth, state=state, realm_id=realm_id, **app.config)
 
     if valid:
         session[f"{prefix}_state"] = client.state
@@ -1089,15 +1083,15 @@ def get_redirect_url(
     redirect_url = cache.get(f"{prefix}_callback_url")
 
     if redirect_url:
-        cache.delete(f"{prefix}_callback_url")
+        delete_cache(path=f"{prefix}_callback_url")
     else:
         redirect_url = url_for(f".{prefix}-auth".lower())
 
     return redirect_url, client
 
 
-def callback(prefix: str, auth: Authentication = None, **kwargs):
-    redirect_url, client = get_redirect_url(prefix, auth, **kwargs)
+def callback(prefix: str, auth: Authentication = None):
+    redirect_url, client = get_redirect_url(prefix, auth)
 
     if client.error:
         json = {

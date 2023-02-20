@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/nerevu/rorschach/master/app/schemas/route-params.schema.json",
+  "$id": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/route-params.schema.json",
   "title": "Flask Route Params",
   "description": "Flask route parameters",
   "type": "object",
@@ -8,6 +8,7 @@
     "name": {
       "description": "Unique identifier for the route",
       "type": "string",
+      "uniqueItems": true,
       "pattern": "^[a-z]+(-[a-z]+)*$",
       "default": "",
       "examples": [

@@ -17,7 +17,6 @@
 import logging
 
 from functools import partial
-from logging import DEBUG, WARNING
 from os import getenv, path as p
 from pathlib import Path
 from pickle import DEFAULT_PROTOCOL
@@ -30,13 +29,13 @@ from flask_cors import CORS
 from meza.fntools import CustomEncoder
 from mezmorize.utils import get_cache_config, get_cache_type
 
-from app.helpers import configure, email_hdlr, flask_formatter
+from app.helpers import configure, email_hdlr, flask_formatter, get_verbosity
 
-__version__ = "0.33.0"
-__title__ = "Nerevu API"
-__package_name__ = "api"
+__version__ = "0.34.0"
+__title__ = "HTTPSanction"
+__package_name__ = "HTTPSanction"
 __author__ = "Reuben Cummings"
-__description__ = "Nerevu monolith API"
+__description__ = "The last HTTP authentication library you'll ever need"
 __email__ = "rcummings@nerevu.com"
 __license__ = "MIT"
 __copyright__ = "Copyright 2019 Nerevu Group"
@@ -124,8 +123,6 @@ def check_settings(app):
     else:
         app.logger.info("Production server not detected.")
 
-    app.logger.info("API_URL is set to {API_URL}.".format(**app.config))
-
     if not required_setting_missing:
         app.logger.info("All required app settings present!")
 
@@ -154,17 +151,20 @@ def create_app(script_info=None, **kwargs):
         else:
             app.logger.warning("Invalid command. Use `manage run` to start the server.")
 
-    verbose = int(app.config.get("VERBOSE", 0))
-    default_handler.setLevel(LOG_LEVELS[verbose])
+    mode = "on" if app.debug else "off"
+    app.config.setdefault("VERBOSITY", get_verbosity(getenv("VERBOSITY"), app.debug))
+    verbosity = app.config["VERBOSITY"]
 
-    if script_info.command == "run":
-        try:
-            port = script_info.port
-        except AttributeError:
-            breakpoint()
-        else:
-            API_URL = app.config["API_URL"].format(port=port, **app.config)
-            app.config["API_URL"] = API_URL
+    print(f" * Verbosity level set to {verbosity} (use -v option to change).")
+    print(f" * Debug mode is {mode}.")
+    default_handler.setLevel(LOG_LEVELS.get(verbosity))
+
+    try:
+        port = script_info.port
+    except AttributeError:
+        pass
+    else:
+        app.config["API_URL"] = app.config["API_URL"].format(port, **app.config)
 
     set_settings(app)
 

@@ -1,0 +1,51 @@
+{
+  "prefix": "timely",
+  "auths": [
+    {
+      "authType": "oauth2",
+      "apiBaseURL": "https://api.timelyapp.com/1.1/{accountId}",
+      "authorizationBaseURL": "https://api.timelyapp.com/1.1/oauth/authorize",
+      "documentationURL": "https://app.timelyapp.com/777870/oauth_applications",
+      "tokenURL": "https://api.timelyapp.com/1.1/oauth/token",
+      "clientId": "$TIMELY_CLIENT_ID",
+      "clientSecret": "$TIMELY_SECRET",
+      "username": "$TIMELY_USERNAME",
+      "password": "$TIMELY_PASSWORD",
+      "attrs": {
+        "accountId": "$TIMELY_ACCOUNT_ID"
+      },
+      "headlessElements": [
+        {
+          "selector": "//email",
+          "description": "timely email",
+          "content": "$TIMELY_USERNAME"
+        },
+        {
+          "selector": "//next-btn",
+          "description": "next",
+          "action": "submit"
+        },
+        {
+          "selector": "//Email",
+          "description": "google email",
+          "content": "$GOOGLE_USERNAME"
+        },
+        {
+          "selector": "//next",
+          "description": "next",
+          "action": "submit"
+        },
+        {
+          "selector": "[type=\"password\"]",
+          "description": "google password",
+          "content": "$GOOGLE_PASSWORD"
+        },
+        {
+          "selector": "//submit[type=\"submit\"]",
+          "description": "google submit",
+          "action": "click"
+        }
+      ]
+    }
+  ]
+}

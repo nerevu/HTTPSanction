@@ -1,0 +1,28 @@
+{
+  "prefix": "keycdn",
+  "auths": [
+    {
+      "authId": "base",
+      "apiBaseURL": "https://api.keycdn.com",
+      "documentationURL": "https://www.keycdn.com/api#overview"
+    },
+    {
+      "authId": "basic",
+      "authType": "basic",
+      "parent": "base",
+      "isDefault": true,
+      "username": "$KEYCDN_API_KEY"
+    },
+    {
+      "authId": "custom",
+      "authType": "custom",
+      "parent": "base",
+      "headers": {
+        "ALL": {
+          "Content-Type": "application/json",
+          "X-Auth-Token": "$KEYCDN_API_KEY"
+        }
+      }
+    }
+  ]
+}

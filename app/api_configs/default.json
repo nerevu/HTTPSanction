@@ -1,7 +1,7 @@
 {
   "name": "default",
   "description": "Authenticates with various 3rd party services!",
-  "message": "Welcome to the Nerevu API!",
+  "message": "Welcome to the HTTPSanction!",
   "methodViewRouteParams": [
     {
       "name": "memoization",
@@ -16,6 +16,22 @@
       ]
     }
   ],
+  "authRouteParams": [
+    {
+      "name": "callback",
+      "module": "app.routes.auth",
+      "className": "Callback"
+    },
+    {
+      "name": "auth",
+      "module": "app.routes.auth",
+      "className": "Auth",
+      "methods": [
+        "GET",
+        "PATCH"
+      ]
+    }
+  ],
   "blueprintRouteParams": [
     {
       "name": "ipsum",
@@ -24,6 +40,15 @@
     }
   ],
   "providerNames": [
+    "airtable",
+    "cloze",
+    "github",
+    "gusto",
+    "keycdn",
+    "mailgun",
+    "postmark",
+    "quickbooks",
+    "timely",
     "xero"
   ]
 }

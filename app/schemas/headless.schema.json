@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/nerevu/rorschach/master/app/schemas/headless.schema.json",
+  "$id": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/headless.schema.json",
   "title": "Headless Element",
   "description": "An element on a provider's application login page",
   "type": "object",
@@ -43,11 +43,6 @@
       "examples": [
         "Enter 2fa code"
       ]
-    },
-    "wait": {
-      "description": "Amount of seconds to wait before executing action",
-      "type": "integer",
-      "default": 0
     }
   },
   "required": [

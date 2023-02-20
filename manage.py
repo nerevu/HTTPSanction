@@ -14,7 +14,6 @@ from os import environ, path as p
 from pathlib import Path
 from subprocess import CalledProcessError, call, check_call
 from sys import exit
-from urllib.parse import urlparse
 
 import click
 import pygogo as gogo
@@ -30,20 +29,14 @@ from pathspec import PathSpec
 from pyjson5 import Json5EOF
 
 from app import create_app
-from app.authclient import get_auth_client, get_json_response
 from app.helpers import configure, email_hdlr, exception_hook
 from app.providers import Provider, provider_from_dict
+from app.route_helpers import augment_auth, get_authentication, validate_providers
 from app.routes.api import (
-    AUTH_PARAMS,
-    augment_auth,
     create_blueprint_route,
     create_home_route,
     create_method_view_route,
-    create_resource_routes,
-    get_authentication,
-    validate_providers,
 )
-from config import Config
 
 try:
     from app.api_configs import APIConfig, MethodViewRouteParams, api_config_from_dict
@@ -60,8 +53,6 @@ DEF_JSON_WHERE = "app *.json"
 
 DATA_DIRS = {
     "provider": "app/providers",
-    "abstract-resource": "app/abstractions",
-    "interface": "app/interfaces",
     "api-config": "app/api_configs",
 }
 SCHEMAS = list(DATA_DIRS)
@@ -98,6 +89,17 @@ class HookGroup(FlaskGroup):
         return super().invoke(ctx)
 
 
+def parse_verbosity(verbose=0, quiet=None):
+    if quiet:
+        verbosity = "0"
+    elif verbose:
+        verbosity = str(verbose)
+    else:
+        verbosity = ""
+
+    return verbosity
+
+
 @click.group(
     cls=HookGroup, create_app=create_app, context_settings=CLICK_COMMAND_SETTINGS
 )
@@ -112,45 +114,49 @@ class HookGroup(FlaskGroup):
 @click.option(
     "-v",
     "--verbose",
-    help="Specify multiple times to increase logging verbosity",
+    help="Specify multiple times to increase logging verbosity (overridden by -q)",
     count=True,
 )
+@click.option("-q", "--quiet", help="Only log errors (overrides -v)", is_flag=True)
 @click.pass_context
 @pass_script_info
-def manager(script_info, ctx, verbose=0, **kwargs):
-    script_info.command = ctx.invoked_subcommand
+def manager(script_info, ctx, verbose=0, quiet=False, **kwargs):
+    subcommand = ctx.invoked_subcommand
+    cmd = ctx.command.get_command(ctx, subcommand)
+    args = ctx.meta.get(ARGS_KEY)
+    cmd.parse_args(ctx, args)
 
-    if ctx.invoked_subcommand == "run":
-        _run = ctx.command.get_command(ctx, "run")
-        _run.parse_args(ctx, ctx.meta.get(ARGS_KEY))
+    if subcommand == "run":
         script_info.port = ctx.params["port"]
+        environ["PORT"] = str(script_info.port)
 
-        with Path("{api-config}/default.json".format(**DATA_DIRS)).open() as f:
-            data = pyjson5.load(f)
+        for api_config in gen_api_configs():
+            [
+                create_method_view_route(params)
+                for params in api_config.method_view_route_params
+            ]
+            [
+                create_blueprint_route(params)
+                for params in api_config.blueprint_route_params
+            ]
+            create_home_route(api_config.description, api_config.message)
 
-        API = next(gen_api_configs())
-        [create_method_view_route(params) for params in API.method_view_route_params]
-        [create_blueprint_route(params) for params in API.blueprint_route_params]
-        create_home_route(API.description, API.message)
-
-        for provider in gen_providers(API):
-            authentication = get_authentication(*provider.auths)
-            augment_auth(provider, authentication)
-
-            for data in AUTH_PARAMS:
-                params = MethodViewRouteParams.from_dict(data)
-                # breakpoint()
-                create_method_view_route(
-                    params, prefix=provider.prefix, auth=authentication
-                )
-
-            create_resource_routes(provider)
+            for provider in gen_providers(api_config):
+                authentication = get_authentication(*provider.auths)
+                augment_auth(provider, authentication)
+                ckwargs = {"prefix": provider.prefix, "auth": authentication}
+                [
+                    create_method_view_route(params, **ckwargs)
+                    for params in api_config.auth_route_params
+                ]
+    else:
+        verbose = ctx.params["verbose"]
 
     flask_config = FlaskConfig(BASEDIR)
     configure(flask_config, **kwargs)
     script_info.flask_config = flask_config
 
-    environ["VERBOSE"] = str(verbose)
+    environ["VERBOSITY"] = parse_verbosity(verbose, quiet)
 
     if flask_config.get("ENV"):
         environ["FLASK_ENV"] = flask_config["ENV"]
@@ -176,98 +182,6 @@ def help(ctx):
     print(f"commands: {commands}")
 
 
-@manager.command()
-@click.option("-m", "--method", help="The HTTP method", default="get")
-@click.option(
-    "-p",
-    "--project-id",
-    help="The Xero Project ID",
-    default="f9d0e04b-f07c-423d-8975-418159180dab",
-)
-@click.option("-r", "--resource", help="The API Resource", default="time")
-def test_oauth(method=None, resource=None, project_id=None, **kwargs):
-    time_data = {
-        "userId": "3f7626f2-5064-4499-a96c-e73653e5aa01",
-        "taskId": "ed9d0041-3680-4011-a24a-a20e72210864",
-        "dateUtc": "2019-12-05T12:00:00Z",
-        "duration": 130,
-        "description": "Billy Bobby Tables",
-    }
-
-    task_data = {
-        "name": "Deep Fryer",
-        "rate": {"currency": "USD", "value": 99.99},
-        "chargeType": "TIME",
-        "estimateMinutes": 120,
-    }
-
-    project_data = {
-        "contactId": "566f4750-b349-490d-af8f-c13b0f5ee6fd",
-        "name": "New Kitchen",
-        "deadlineUtc": "2017-04-23T18:25:43.511Z",
-        "estimateAmount": 99.99,
-    }
-
-    xero = get_auth_client("xero", None, **app.config)
-    accept = ("Accept", "application/json")
-    content_type = ("Content-Type", "application/x-www-form-urlencoded")
-
-    try:
-        tenant_id = ("Xero-tenant-id", xero.tenant_id)
-    except AttributeError:
-        tenant_id = ("Xero-tenant-id", "")
-
-    DATA = {
-        "time": time_data,
-        "task": task_data,
-        "project": project_data,
-        "contact": {"Name": "ABC Limited"},
-    }
-
-    HEADERS = {
-        (1, "post", "projects"): [accept, content_type],
-        (1, "get", "projects"): [accept],
-        (1, "post", "api"): [accept, content_type],
-        (1, "get", "api"): [accept],
-        (2, "post", "projects"): [accept, tenant_id],
-        (2, "get", "projects"): [accept, tenant_id],
-        (2, "post", "api"): [],
-        (2, "get", "api"): [accept],
-    }
-
-    PAYLOAD = {
-        (1, "post", "projects"): "json",
-        (1, "post", "api"): "json",
-        (2, "post", "projects"): "json",
-        (2, "post", "api"): "json",
-    }
-
-    URLS = {
-        "time": f"https://api.xero.com/projects.xro/2.0/projects/{project_id}/time",
-        "task": f"https://api.xero.com/projects.xro/2.0/projects/{project_id}/tasks",
-        "project": "https://api.xero.com/projects.xro/2.0/Projects",
-        "contact": "https://api.xero.com/api.xro/2.0/Contacts",
-        "invoice": "https://api.xero.com/api.xro/2.0/Invoices",
-    }
-
-    url = URLS[resource]
-    data = DATA[resource]
-    domain = urlparse(url).path.split("/")[1].split(".")[0]
-    key = (app.config["XERO_OAUTH_VERSION"], method, domain)
-    kwargs = {"method": method, "headers": dict(HEADERS[key])}
-
-    if method == "post":
-        kwargs[PAYLOAD[key]] = data
-
-    json = get_json_response(url, xero, **kwargs)
-
-    if json.get("message"):
-        print(json["message"])
-
-    if json.get("result"):
-        print(json["result"])
-
-
 def _lint_py(where, strict):
     """Check Python style with flake8"""
     where = where or DEF_PY_WHERE
@@ -283,7 +197,7 @@ def _eslint(where, strict):
     """Check json syntax with eslint"""
     where = where or DEF_JSON_WHERE
     paths = list(chain(*map(glob, where.split(" "))))
-    check_call(["eslint"] + paths + ["--ext", ".json"])
+    check_call(["npx", "eslint"] + paths + ["--ext", ".json"])
 
 
 def _black(where):
@@ -508,16 +422,16 @@ def validate_data(schema):
                     logger.info(f"{document} is valid!")
 
         if schema == "provider":
-            API = next(gen_api_configs())
-            providers = gen_providers(API)
+            for api_config in gen_api_configs():
+                providers = gen_providers(api_config)
 
-            try:
-                validate_providers(providers)
-            except AssertionError as e:
-                num_errors += 1
-                logger.error(e)
-            else:
-                logger.info(f"{source} is valid!")
+                try:
+                    validate_providers(providers)
+                except AssertionError as e:
+                    num_errors += 1
+                    logger.error(e)
+                else:
+                    logger.info(f"{source} is valid!")
 
     exit(num_errors)
 

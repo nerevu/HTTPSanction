@@ -42,6 +42,52 @@ def to_class(c: Type[T], x: Any) -> dict:
 
 
 @dataclass
+class AuthRouteParams:
+    """Auth route parameters
+
+    Flask route parameters
+    """
+
+    """The Auth class name"""
+    class_name: str
+    """The class or function module"""
+    module: str
+    """Unique identifier for the route"""
+    name: str
+    """HTTP methods this route allows"""
+    methods: Optional[List[str]]
+    """Query parameters this route accepts (in the form of `<type>:<name>`"""
+    params: Optional[List[str]]
+
+    @staticmethod
+    def from_dict(obj: Any) -> "AuthRouteParams":
+        assert isinstance(obj, dict)
+        class_name = from_str(obj.get("className"))
+        module = from_str(obj.get("module"))
+        name = from_str(obj.get("name"))
+        methods = from_union(
+            [lambda x: from_list(from_str, x), from_none], obj.get("methods")
+        )
+        params = from_union(
+            [lambda x: from_list(from_str, x), from_none], obj.get("params")
+        )
+        return AuthRouteParams(class_name, module, name, methods, params)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["className"] = from_str(self.class_name)
+        result["module"] = from_str(self.module)
+        result["name"] = from_str(self.name)
+        result["methods"] = from_union(
+            [lambda x: from_list(from_str, x), from_none], self.methods
+        )
+        result["params"] = from_union(
+            [lambda x: from_list(from_str, x), from_none], self.params
+        )
+        return result
+
+
+@dataclass
 class BlueprintRouteParams:
     """Blueprint route parameters
 
@@ -131,7 +177,9 @@ class APIConfig:
     method_view_route_params: List[MethodViewRouteParams]
     """Unique identifier for the API"""
     name: str
-    """Exposed resource provider prefixes"""
+    """Exposed Auth params per provider"""
+    auth_route_params: Optional[List[AuthRouteParams]]
+    """Exposed provider prefixes"""
     provider_names: Optional[List[str]]
 
     @staticmethod
@@ -146,6 +194,10 @@ class APIConfig:
             MethodViewRouteParams.from_dict, obj.get("methodViewRouteParams")
         )
         name = from_str(obj.get("name"))
+        auth_route_params = from_union(
+            [lambda x: from_list(AuthRouteParams.from_dict, x), from_none],
+            obj.get("authRouteParams"),
+        )
         provider_names = from_union(
             [lambda x: from_list(from_str, x), from_none], obj.get("providerNames")
         )
@@ -155,6 +207,7 @@ class APIConfig:
             message,
             method_view_route_params,
             name,
+            auth_route_params,
             provider_names,
         )
 
@@ -169,6 +222,10 @@ class APIConfig:
             lambda x: to_class(MethodViewRouteParams, x), self.method_view_route_params
         )
         result["name"] = from_str(self.name)
+        result["authRouteParams"] = from_union(
+            [lambda x: from_list(lambda x: to_class(AuthRouteParams, x), x), from_none],
+            self.auth_route_params,
+        )
         result["providerNames"] = from_union(
             [lambda x: from_list(from_str, x), from_none], self.provider_names
         )

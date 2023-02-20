@@ -1,0 +1,41 @@
+{
+  "prefix": "quickbooks",
+  "auths": [
+    {
+      "authId": "base",
+      "authType": "oauth2",
+      "documentationURL": "https://developer.intuit.com/app/developer/qbo/docs/develop/authentication-and-authorization/oauth-2.0",
+      "authorizationBaseURL": "https://appcenter.intuit.com/connect/oauth2",
+      "tokenURL": "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer",
+      "scope": [
+        "com.intuit.quickbooks.accounting"
+      ],
+      "headers": {
+        "ALL": {
+          "Content-Type": "application/json"
+        }
+      }
+    },
+    {
+      "authId": "live",
+      "parent": "base",
+      "apiBaseURL": "https://quickbooks.api.intuit.com/v3/company/{realmId}",
+      "clientId": "$QB_CLIENT_ID",
+      "clientSecret": "$QB_CLIENT_SECRET",
+      "attrs": {
+        "realmId": "$QB_REALM_ID"
+      }
+    },
+    {
+      "authId": "sandbox",
+      "parent": "base",
+      "isDefault": true,
+      "apiBaseURL": "https://sandbox-quickbooks.api.intuit.com/v3/company/{realmId}",
+      "clientId": "$QB_SANDBOX_CLIENT_ID",
+      "clientSecret": "$QB_SANDBOX_CLIENT_SECRET",
+      "attrs": {
+        "realmId": "$QB_SANDBOX_REALM_ID"
+      }
+    }
+  ]
+}
