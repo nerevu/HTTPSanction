@@ -5,16 +5,18 @@
 
     Provides OAuth authentication functionality
 """
+from time import sleep
 from dataclasses import asdict, dataclass, field
 from datetime import datetime as dt, timedelta, timezone
 from functools import partial
 from itertools import chain
-from json import JSONDecodeError, load
-from pathlib import Path
+from json import JSONDecodeError
 from tempfile import NamedTemporaryFile
 from typing import Union
 from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse
 from enum import Enum, auto
+from shlex import quote
+from random import uniform
 
 import pygogo as gogo
 import requests
@@ -36,6 +38,8 @@ from oauthlib.oauth2 import (
     MobileApplicationClient,
 )
 from requests.auth import AuthBase, HTTPBasicAuth
+from requests.exceptions import ChunkedEncodingError, ConnectionError
+from requests.models import Request
 from requests_oauthlib import OAuth1Session, OAuth2Session
 from requests_oauthlib.oauth1_session import TokenRequestDenied
 
@@ -43,7 +47,7 @@ from app import LOG_LEVELS, cache
 from app.headless import headless_auth
 from app.helpers import flask_formatter as formatter, get_verbosity
 from app.providers import Authentication
-from app.utils import get_links, jsonify, uncache_header
+from app.utils import uncache_header, jsonify, get_links, delete_cache
 from config import Config
 
 logger = gogo.Gogo(
@@ -268,21 +272,13 @@ class OAuth2Client(OAuth2BaseClient):
             logger.error(self.error)
 
     @property
-    def failed_or_tried_headless(self):
-        return self.failed_headless_auth or self.tried_headless_auth
-
-    @property
-    def headless_status(self):
-        return "failed" if self.failed_headless_auth else "succeeded"
-
-    @property
     def restore_from_headless(self):
         return self.tried_headless_auth and not self.failed_headless_auth
 
     @property
     def can_headlessly_auth(self):
         auth_info = self.username and self.password and self.headless_elements
-        return auth_info and self.headless and not self.failed_or_tried_headless
+        return auth_info and self.headless and not self.tried_headless_auth
 
     @property
     def headless_kwargs(self):
@@ -327,20 +323,20 @@ class OAuth2Client(OAuth2BaseClient):
         return self.oauth_session.authorization_url(self.authorization_base_url)
 
     def fetch_token(self):
-        kwargs = {"client_secret": self.client_secret}
+        token = {}
+        kwargs = {}
+        self.error = ""
         isMobile = self.flow_enum == FlowTypes.MOBILE
-        if request.args.get("code"):
-            kwargs["code"] = request.args["code"]
-        else:
-            kwargs["authorization_response"] = request.url
 
-        try:
-            token = self.oauth_session.fetch_token(self.token_url, **kwargs)
-        except Exception as e:
-            self.error = f"Failed to fetch token: {str(e)}"
-            token = {}
+        if self.flow_enum == FlowTypes.WEB:
+            # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html
+            kwargs = {"client_secret": self.client_secret}
 
-        if self.flow_enum == FlowTypes.LEGACY:
+            if request.args.get("code"):
+                kwargs["code"] = request.args["code"]
+            else:
+                kwargs["authorization_response"] = request.url
+        elif self.flow_enum == FlowTypes.LEGACY:
             # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html#legacy-application-flow
             kwargs = {
                 "username": self.username,
@@ -405,21 +401,22 @@ class OAuth2Client(OAuth2BaseClient):
         elif self.refresh_token:
             self.error = "No refresh_url provided!"
         elif self.can_headlessly_auth:
+            logger.info(f"No {self.prefix} refresh token present.")
             logger.info(f"Attempting to renew {self} using headless authentication")
             url = self.authorization_url[0]
-            self.failed_headless_auth = headless_auth(
-                url, self.prefix, **self.headless_kwargs
-            )
-            self.tried_headless_auth = True
-        else:
-            error = f"No {self.prefix} refresh token present. Please re-authenticate!"
 
             if self.tried_headless_auth:
-                error += (
-                    f" Previous headless authentication attempt {self.headless_status}."
+                self.error = "Headless authentication attempt failed."
+            else:
+                self.tried_headless_auth = True
+                self.failed_headless_auth = headless_auth(
+                    url, self.prefix, **self.headless_kwargs
                 )
 
-            self.error = error
+            # TODO: fix this so it doesn't continue to re-authenticate normally
+        else:
+            logger.info(f"No {self.prefix} refresh token present.")
+            logger.info("Attempting to re-authenticate")
 
         return self
 
@@ -656,6 +653,38 @@ AuthClientTypes = Union[
 ]
 
 
+# https://github.com/ofw/curlify
+def request_to_curl_args(request):
+    try:
+        _request = request.request
+    except AttributeError:
+        _request = request
+
+    yield from ("-X", _request.method)
+
+    for k, v in sorted(request.headers.items()):
+        yield from ("-H", f"{k}: {v}")
+
+    if body := _request.body:
+        yield from ("-d", body.decode("utf-8") if isinstance(body, bytes) else body)
+
+
+def args_to_curl_args(method, params=None, data=None, json=None, headers=None):
+    yield from ("-X", method.upper())
+
+    if headers:
+        for k, v in sorted(headers.items()):
+            yield from ("-H", f"{k}: {v}")
+
+    if body := request.body:
+        yield from ("-d", body.decode("utf-8") if isinstance(body, bytes) else body)
+
+
+def request_to_curl(request):
+    args = " ".join(map(quote, request_to_curl_args(request)))
+    return f"curl {args} {request.url}"
+
+
 def get_auth_client(
     prefix: str,
     auth: Authentication = None,
@@ -663,24 +692,12 @@ def get_auth_client(
     VERBOSITY: str = None,
     **kwargs,
 ) -> AuthClientTypes:
-    auth_type = auth.auth_type
-    auth_client_name = f"{prefix}_{auth_type}_auth_client"
     verbosity = get_verbosity(VERBOSITY, auth.debug)
     logger.setLevel(LOG_LEVELS.get(verbosity))
+    auth_client_name = f"{prefix}_auth_client"
 
     if auth_client_name not in g:
-        MyAuthClient = AVAILABLE_AUTHS[auth_type]
-        redirect_uri = auth.redirect_uri or ""
-
-        if redirect_uri.startswith("/") and api_url:
-            auth.redirect_uri = f"{api_url}{redirect_uri}"
-
-        if "debug" in kwargs:
-            auth.debug = kwargs["debug"]
-
-        if "headless" in kwargs:
-            auth.headless = kwargs["headless"]
-
+        MyAuthClient = AVAILABLE_AUTHS[auth.auth_type]
         client = MyAuthClient(prefix=prefix, state=state, **asdict(auth))
         client.flow_enum = auth.flow_enum
         client.attrs = auth.attrs or {}
@@ -844,16 +861,18 @@ def is_ok(success_code=200, **kwargs):
     return (status_code, ok)
 
 
-def get_result(url, client, params=None, method="get", **kwargs):
-    params = params or {}
+def get_result(url, client, method="get", **kwargs):
+    params = kwargs.get("params") or {}
     data = kwargs.get("data") or {}
     json_data = kwargs.get("json") or {}
     def_headers = kwargs.get("headers") or {}
     all_headers = client.headers.get("all") or {}
     method_headers = client.headers.get(method) or {}
-    __headers = {**all_headers, **method_headers}
-    _headers = {k: v.format(**client.__dict__) for k, v in __headers.items()}
-    headers = {**HEADERS, **_headers, **def_headers}
+    _client_headers = {**all_headers, **method_headers}
+    client_headers = {
+        k: v.format(**client.__dict__) for k, v in _client_headers.items()
+    }
+    headers = {**HEADERS, **client_headers, **def_headers}
 
     try:
         requestor = client.oauth_session
@@ -862,12 +881,38 @@ def get_result(url, client, params=None, method="get", **kwargs):
 
     verb = getattr(requestor, method)
 
-    try:
-        verb = partial(verb, auth=client.auth)
-    except AttributeError:
-        pass
+    if client.auth:
+        try:
+            verb = partial(verb, auth=client.auth)
+        except AttributeError:
+            pass
 
-    return verb(url, params=params, data=data, json=json_data, headers=headers)
+    vkwargs = {}
+
+    if params:
+        vkwargs["params"] = params
+
+    if data:
+        vkwargs["data"] = data
+
+    if json_data:
+        vkwargs["json"] = json_data
+
+    result = verb(url, headers=headers, **vkwargs)
+
+    if result is None:
+        req = Request(
+            method=method.upper(),
+            url=url,
+            headers=headers,
+            data=data,
+            json=json_data,
+            params=params,
+        )
+
+        result = requestor.prepare_request(req)
+
+    return result
 
 
 def get_errors(result, _json):
@@ -894,15 +939,38 @@ def get_errors(result, _json):
     return json
 
 
-def get_json(url, client, params=None, method="get", success_code=200, **kwargs):
+def get_json(url, client, **kwargs):
+    result = None
+    params = kwargs.get("params")
+    method = kwargs["method"]
+    success_code = kwargs["success_code"]
+    retry_cnt = kwargs["retry_cnt"]
+    max_retries = kwargs["max_retries"]
+    init_backoff = kwargs["init_backoff"]
+
     try:
-        result = get_result(url, client, params=params, method=method, **kwargs)
+        result = get_result(url, client, method=method, params=params, **kwargs)
     except TokenExpiredError:
-        unscoped = False
-        result = None
+        ok = unscoped = False
         json = {"message": "Token Expired", "status_code": 401}
+    except (ChunkedEncodingError, ConnectionError) as e:
+        # https://github.com/psf/requests/issues/4771#issue-354077499
+        if retry_cnt < max_retries:
+            wait = init_backoff * 2 ** (retry_cnt + 1) + uniform(0, 2)
+            logger.info(f"Connection Closed. Waiting {wait} seconds...")
+            sleep(wait)
+            logger.debug("Done waiting!")
+            return get_json_response(
+                url, client, params=params, retry_cnt=retry_cnt + 1, **kwargs
+            )
+        else:
+            ok = unscoped = False
+            error = e.strerror or str(e)
+            message = f"{error}. Max tries of {max_retries + 1} reached."
+            json = {"message": message, "status_code": 408}
     else:
         unscoped = result.headers.get("WWW-Authenticate") == "insufficient_scope"
+        ok = result.ok
 
         try:
             json = result.json()
@@ -915,16 +983,19 @@ def get_json(url, client, params=None, method="get", success_code=200, **kwargs)
 
     status_code, ok = is_ok(success_code, **json)
 
-    if (result is not None) and (not ok) and kwargs.get("debug"):
+    if result and not ok and kwargs.get("debug"):
         debug_header(result)
 
-    return (json, unscoped)
+    if result and not (ok or kwargs.get("message")):
+        json["message"] = f"{result.reason}."
+
+    return (json, unscoped, result)
 
 
-def get_json_response(url, client, params=None, renewed=False, **kwargs):
+def get_json_response(url, client, retry_cnt=0, init_backoff=1, max_retries=5, success_code=200, method="get", **kwargs):
+    params = kwargs.get("params")
     unscoped = False
-    success_code = kwargs.get("success_code", 200)
-    method = kwargs.get("method", "get")
+    result = None
 
     if not client:
         json = {"message": "No client.", "status_code": 407}
@@ -935,12 +1006,13 @@ def get_json_response(url, client, params=None, renewed=False, **kwargs):
     elif client.error:
         json = {"message": client.error, "status_code": 500}
     elif url:
-        json, unscoped = get_json(
+        json, unscoped, result = get_json(
             url,
             client,
-            params=params,
-            method=method,
             success_code=success_code,
+            max_retries=max_retries,
+            retry_cnt=retry_cnt,
+            init_backoff=init_backoff,
             **kwargs,
         )
     else:
@@ -949,7 +1021,7 @@ def get_json_response(url, client, params=None, renewed=False, **kwargs):
     status_code, ok = is_ok(success_code, **json)
     json["ok"] = ok
 
-    if status_code in {400, 401} and not renewed:
+    if status_code in {400, 401} and not retry_cnt:
         debug_status(client, unscoped, **json)
 
         try:
@@ -957,19 +1029,38 @@ def get_json_response(url, client, params=None, renewed=False, **kwargs):
         except AttributeError:
             pass
         else:
-            json = get_json_response(url, client, params=params, renewed=True, **kwargs)
+            json = get_json_response(url, client, params=params, retry_cnt=1, **kwargs)
+    elif status_code == 429:
+        # https://developer.xero.com/documentation/guides/oauth2/limits/
+        wait = result.headers.get("Retry-After") if result is not None else None
+
+        if wait and retry_cnt < max_retries:
+            # https://github.com/psf/requests/issues/2726
+            logger.info(f"Exceeded quota. Waiting {wait} seconds...")
+            sleep(int(wait))
+            logger.debug("Done waiting!")
+
+            return get_json_response(
+                url, client, params=params, retry_cnt=retry_cnt + 1, **kwargs
+            )
+        elif wait:
+            message = f" Max tries of {max_retries} reached."
+        else:
+            message = " No `Retry-After` given."
+
+        json["message"] += message
     elif ok and has_app_context():
         json["links"] = get_links(app.url_map.iter_rules())
     else:
         debug_json(client, url, method=method, **json)
 
+        if result is not None:
+            logger.info(request_to_curl(result))
+
     return json
 
 
-def get_redirect_url(
-    prefix: str, auth: Authentication = None, **kwargs
-) -> tuple[str, AuthClientTypes]:
-
+def get_redirect_url(prefix: str, auth: Authentication = None) -> tuple[str, AuthClientTypes]:
     """Retrieve an access token.
 
     The user has been redirected back from the provider to your registered
@@ -993,7 +1084,7 @@ def get_redirect_url(
     redirect_url = cache.get(f"{prefix}_callback_url")
 
     if redirect_url:
-        cache.delete(f"{prefix}_callback_url")
+        delete_cache(path=f"{prefix}_callback_url")
     else:
         redirect_url = url_for(f".{prefix}-auth".lower())
 
