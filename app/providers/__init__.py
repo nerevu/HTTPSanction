@@ -230,11 +230,13 @@ class HeadlessElement:
 class Authentication:
     """API authentication"""
 
-    """Unique API authentication type"""
-    auth_type: str
     """Base API URL"""
     api_base_url: Optional[str]
     attrs: Optional[Dict[str, Union[bool, int, str]]]
+    """Unique identifier for the API resource"""
+    auth_id: Optional[str]
+    """Unique API authentication type"""
+    auth_type: Optional[str]
     """API OAuth authorization URL"""
     authorization_base_url: Optional[str]
     """The API client ID"""
@@ -278,7 +280,6 @@ class Authentication:
     @staticmethod
     def from_dict(obj: Any) -> "Authentication":
         assert isinstance(obj, dict)
-        auth_type = from_str(obj.get("authType"))
         api_base_url = from_union([from_none, from_str], obj.get("apiBaseURL"))
         attrs = from_union(
             [
@@ -289,6 +290,8 @@ class Authentication:
             ],
             obj.get("attrs"),
         )
+        auth_id = from_union([from_none, from_str], obj.get("authId"))
+        auth_type = from_union([from_none, from_str], obj.get("authType"))
         authorization_base_url = from_union(
             [from_none, from_str], obj.get("authorizationBaseURL")
         )
@@ -329,9 +332,10 @@ class Authentication:
         token_url = from_union([from_none, from_str], obj.get("tokenURL"))
         username = from_union([from_none, from_str], obj.get("username"))
         return Authentication(
-            auth_type,
             api_base_url,
             attrs,
+            auth_id,
+            auth_type,
             authorization_base_url,
             client_id,
             client_secret,
@@ -356,7 +360,6 @@ class Authentication:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["authType"] = from_str(self.auth_type)
         result["apiBaseURL"] = from_union([from_none, from_str], self.api_base_url)
         result["attrs"] = from_union(
             [
@@ -367,6 +370,8 @@ class Authentication:
             ],
             self.attrs,
         )
+        result["authId"] = from_union([from_none, from_str], self.auth_id)
+        result["authType"] = from_union([from_none, from_str], self.auth_type)
         result["authorizationBaseURL"] = from_union(
             [from_none, from_str], self.authorization_base_url
         )

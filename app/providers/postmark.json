@@ -1,0 +1,27 @@
+{
+  "prefix": "postmark",
+  "auths": [
+    {
+      "authId": "base",
+      "authType": "custom",
+      "documentationURL": "https://postmarkapp.com/developer/api/overview",
+      "apiBaseURL": "https://api.postmarkapp.com",
+      "headers": {"ALL": {"Content-Type": "application/json"}}
+    },
+    {
+      "authId": "account",
+      "parent": "base",
+      "isDefault": true,
+      "headers": {
+        "ALL": {"X-Postmark-Account-Token": "$POSTMARK_ACCOUNT_TOKEN"}
+      }
+    },
+    {
+      "authId": "server",
+      "parent": "base",
+      "headers": {
+        "ALL": {"X-Postmark-Server-Token": "$POSTMARK_SERVER_TOKEN"}
+      }
+    }
+  ]
+}

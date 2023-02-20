@@ -39,7 +39,12 @@
   "providerNames": [
     "airtable",
     "cloze",
+    "github",
     "gusto",
+    "keycdn",
+    "mailgun",
+    "postmark",
+    "quickbooks",
     "timely",
     "xero"
   ]

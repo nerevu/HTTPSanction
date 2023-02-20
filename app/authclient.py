@@ -62,7 +62,7 @@ RENEW_TIME = 60
 HEADERS = {"Accept": "application/json"}
 
 
-@dataclass
+@dataclass(repr=False)
 class BaseClient(Authentication):
     prefix: str = ""
     state: str = ""
@@ -74,7 +74,7 @@ class BaseClient(Authentication):
         self.auth_type = "custom"
 
     def __repr__(self):
-        return f"{self.prefix} {self.auth_type}"
+        return f"{self.prefix} <{self.auth_id}:{self.auth_type}>"
 
     @property
     def oauth1(self):
@@ -85,13 +85,13 @@ class BaseClient(Authentication):
         return self.oauth_version == 2
 
 
-@dataclass
+@dataclass(repr=False)
 class AuthClient(BaseClient):
     verified: bool = True
     expired: bool = False
 
 
-@dataclass
+@dataclass(repr=False)
 class OAuth2BaseClient(BaseClient):
     access_token: str = ""
     refresh_token: str = ""
@@ -208,7 +208,7 @@ FLOW_TYPES = {
 }
 
 
-@dataclass
+@dataclass(repr=False)
 class OAuth2Client(OAuth2BaseClient):
     revoke_url: str = ""
     account_id: str = ""
@@ -262,6 +262,11 @@ class OAuth2Client(OAuth2BaseClient):
                 if self.verified:
                     self.error = ""
                     logger.debug(f"{self.prefix} successfully authenticated!")
+                elif self.expires_in < RENEW_TIME:
+                    logger.warning(
+                        f"{self.prefix} token expired. Attempting to renew..."
+                    )
+                    self.renew_token("expired")
                 else:
                     logger.warning(
                         f"{self.prefix} not authorized. Attempting to renew..."
@@ -319,8 +324,12 @@ class OAuth2Client(OAuth2BaseClient):
         return self.oauth_session.authorized if self.oauth_session else False
 
     @property
-    def authorization_url(self):
+    def authorization_and_state(self):
         return self.oauth_session.authorization_url(self.authorization_base_url)
+
+    @property
+    def authorization_url(self):
+        return self.authorization_and_state[0]
 
     def fetch_token(self):
         token = {}
@@ -403,7 +412,7 @@ class OAuth2Client(OAuth2BaseClient):
         elif self.can_headlessly_auth:
             logger.info(f"No {self.prefix} refresh token present.")
             logger.info(f"Attempting to renew {self} using headless authentication")
-            url = self.authorization_url[0]
+            url = self.authorization_url
 
             if self.tried_headless_auth:
                 self.error = "Headless authentication attempt failed."
@@ -416,7 +425,6 @@ class OAuth2Client(OAuth2BaseClient):
             # TODO: fix this so it doesn't continue to re-authenticate normally
         else:
             logger.info(f"No {self.prefix} refresh token present.")
-            logger.info("Attempting to re-authenticate")
 
         return self
 
@@ -437,7 +445,7 @@ class OAuth2Client(OAuth2BaseClient):
         return json
 
 
-@dataclass
+@dataclass(repr=False)
 class OAuth1Client(AuthClient):
     request_url: str = ""
     oauth_version: int = field(default=1, init=False)
@@ -537,8 +545,7 @@ class OAuth1Client(AuthClient):
     @property
     def authorization_url(self):
         query_string = {"oauth_token": self.oauth_token}
-        authorization_url = f"{self.authorization_base_url}?{urlencode(query_string)}"
-        return (authorization_url, False)
+        return f"{self.authorization_base_url}?{urlencode(query_string)}"
 
     def fetch_token(self):
         kwargs = {"verifier": request.args["oauth_verifier"]}
@@ -602,7 +609,7 @@ class OAuth1Client(AuthClient):
         self._init_credentials()
 
 
-@dataclass
+@dataclass(repr=False)
 class BasicAuthClient(AuthClient):
     auth: tuple[str, str] = field(init=False)
 
@@ -612,7 +619,7 @@ class BasicAuthClient(AuthClient):
         self.auth = (self.username, self.password)
 
 
-@dataclass
+@dataclass(repr=False)
 class BearerAuth(AuthBase):
     token: str = ""
 
@@ -621,7 +628,7 @@ class BearerAuth(AuthBase):
         return r
 
 
-@dataclass
+@dataclass(repr=False)
 class BearerAuthClient(AuthClient):
     token: str = ""
     auth: BearerAuth = field(init=False)
@@ -699,28 +706,9 @@ def get_auth_client(
     if auth_client_name not in g:
         MyAuthClient = AVAILABLE_AUTHS[auth.auth_type]
         client = MyAuthClient(prefix=prefix, state=state, **asdict(auth))
-        client.flow_enum = auth.flow_enum
-        client.attrs = auth.attrs or {}
-        client.params = auth.params or {}
-
-        try:
-            restore_from_headless = client.restore_from_headless
-        except AttributeError:
-            restore_from_headless = False
-
-        if restore_from_headless:
-            logger.debug("restoring client from headless session")
-            client.restore()
-            client.renew_token("headless")
-
         setattr(g, auth_client_name, client)
 
-    client = g.get(auth_client_name)
-
-    if client.oauth_version == 2 and client.expires_in < RENEW_TIME:
-        client.renew_token("expired")
-
-    return client
+    return g.get(auth_client_name)
 
 
 def get_quickbooks_error(**kwargs):

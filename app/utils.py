@@ -481,6 +481,10 @@ def camel_to_snake_case(name):
     return PASCAL_PATTERN.sub("-", name).lower()
 
 
+def snake_to_pascal_case(text: str) -> str:
+    return "".join(word.title() for word in text.split("_"))
+
+
 def parse_request(app=None):
     args = request.args.to_dict() or {}
     form = request.form or {}

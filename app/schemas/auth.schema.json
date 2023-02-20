@@ -63,6 +63,17 @@
         "/xero-callback"
       ]
     },
+    "authId": {
+      "description": "Unique identifier for the API resource",
+      "type": "string",
+      "pattern": "^[a-z]+(_[a-z]+)*$",
+      "default": "",
+      "examples": [
+        "status",
+        "users",
+        "project_tasks"
+      ]
+    },
     "authType": {
       "description": "Unique API authentication type",
       "type": "string",
@@ -71,7 +82,7 @@
       "pattern": "oauth1|oauth2|service|bearer|basic|custom"
     },
     "flowType": {
-      "description": "OAuth2 flow type",
+      "description": "OAuth2 flow type: web -> Authorization Grant Type, mobile -> Implicit Code Grant Type, legacy -> Password Credentials Grant Type, backend -> Client Credentials Grant Type",
       "type": "string",
       "default": "web",
       "pattern": "web|backend|legacy|mobile"
@@ -217,7 +228,8 @@
       "default": false
     }
   },
-  "required": [
-    "authType"
-  ]
+  "anyOf": [
+      {"required": ["authId"]},
+      {"required": ["authType"]}
+    ]
 }

@@ -7,10 +7,10 @@
 """
 from collections import Counter
 from dataclasses import asdict
-from os import getenv
+from os import getenv, path as p
 
 import pygogo as gogo
-
+from dotenv import load_dotenv
 
 from app.helpers import flask_formatter as formatter, toposort
 from app.providers import Authentication, Provider
@@ -21,11 +21,9 @@ logger = gogo.Gogo(
 logger.propagate = False
 
 
-def _format(value, **kwargs):
-    try:
-        return value.format(**kwargs)
-    except AttributeError:
-        return value
+PARENT_DIR = p.abspath(p.dirname(p.dirname(__file__)))
+
+load_dotenv(p.join(PARENT_DIR, ".env"), override=True)
 
 
 def getattrs(obj, *attrs):
@@ -37,18 +35,18 @@ def getattrs(obj, *attrs):
     return attr
 
 
-def get_authentication(*args: Authentication, auth_type: str = None) -> Authentication:
+def get_authentication(*args: Authentication, auth_id: str = None) -> Authentication:
     authentication = None
 
-    if auth_type:
+    if auth_id:
         for authentication in args:
-            if authentication.auth_type == auth_type:
+            if authentication.auth_id == auth_id:
                 break
         else:
-            raise AssertionError(f"authType `{auth_type}` is missing from auth!")
+            raise AssertionError(f"authId `{auth_id}` is missing from auth!")
     else:
         if len(args) > 1:
-            for _, authentication in toposort(*args, id_key="auth_type"):
+            for _, authentication in toposort(*args, id_key="auth_id"):
                 if authentication.is_default:
                     break
             else:
@@ -61,32 +59,82 @@ def get_authentication(*args: Authentication, auth_type: str = None) -> Authenti
     return authentication
 
 
-def snake_to_pascal_case(text: str) -> str:
-    return "".join(word.title() for word in text.split("_"))
+def is_listlike(item):
+    attrs = {"append", "next", "__reversed__", "__next__"}
+    return attrs.intersection(dir(item))
+
+
+def replace_envs(value):
+    replaced = value
+    is_env = False
+
+    try:
+        is_env = value.startswith("$")
+    except AttributeError:
+        try:
+            replaced = {k: replace_envs(v) for k, v in value.items()}
+        except AttributeError:
+            if is_listlike(replaced):
+                replaced = [replace_envs(v) for v in value]
+
+    if is_env:
+        env = value.lstrip("$")
+        replaced = getenv(env)
+
+        if not replaced:
+            logger.error(f"Env `{env}` not found in environment!")
+
+    return replaced
+
+
+def _format(value, **kwargs):
+    formatted = value
+
+    try:
+        formatted = value.format(**kwargs)
+    except AttributeError:
+        try:
+            formatted = {k: _format(v, **kwargs) for k, v in value.items()}
+        except AttributeError:
+            if is_listlike(formatted):
+                formatted = [_format(v) for v in value]
+
+    return formatted
 
 
 def augment_auth(provider: Provider, authentication: Authentication):
     authentication.attrs = authentication.attrs or {}
+    kwargs = {}
 
     if authentication.parent:
-        parent = get_authentication(*provider.auths, auth_type=authentication.parent)
+        parent = get_authentication(*provider.auths, auth_id=authentication.parent)
+        parentAsdict = asdict(parent)
+        kwargs.update(parentAsdict)
 
-        for k, v in asdict(parent).items():
+        for k, v in parentAsdict.items():
             if v and not getattr(authentication, k):
                 setattr(authentication, k, v)
 
         parent_attrs = parent.attrs or {}
         [authentication.attrs.setdefault(k, v) for k, v in parent_attrs.items()]
 
-    for k, v in asdict(authentication).items():
-        try:
-            is_env = v.startswith("$")
-        except AttributeError:
-            is_env = False
+    authAsdict = asdict(authentication)
+    kwargs.update(authAsdict)
+    kwargs.update(authentication.attrs)
 
-        if is_env:
-            env = v.lstrip("$")
-            setattr(authentication, k, getenv(env))
+    for k, v in authAsdict.items():
+        if v:
+            replaced = replace_envs(v)
+            setattr(authentication, k, replaced)
+
+    authAsdict = asdict(authentication)
+    kwargs.update(authAsdict)
+    kwargs.update(authentication.attrs)
+
+    for k, v in authAsdict.items():
+        if v:
+            formatted = _format(v, **kwargs)
+            setattr(authentication, k, formatted)
 
 
 def validate_providers(*args: Provider):

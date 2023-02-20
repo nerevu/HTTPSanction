@@ -5,6 +5,7 @@ Provides Auth routes.
 
 """
 from pathlib import Path
+from html import unescape
 
 import pygogo as gogo
 
@@ -94,7 +95,7 @@ class Auth(BaseView):
         try:
             # https://gist.github.com/ib-lundgren/6507798#gistcomment-1006218
             # State is used to prevent CSRF, keep this for later.
-            authorization_url, state = client.authorization_url
+            authorization_url, state = client.authorization_and_state
         except AttributeError:
             pass
         else:
@@ -112,14 +113,17 @@ class Auth(BaseView):
 
             result = jsonify(**json)
         else:
+            logger.info("Attempting to re-authenticate")
+
             if client.oauth1:
                 # clear previously cached token
                 client.renew_token()
-                authorization_url = client.authorization_url[0]
+                authorization_url = client.authorization_url
 
             if authorization_url:
-                logger.info("redirecting to %s", authorization_url)
-                result = redirect(authorization_url)
+                url = unescape(authorization_url)
+                logger.info("redirecting to %s", url)
+                result = redirect(url)
             else:
                 result = jsonify(**json)
 
