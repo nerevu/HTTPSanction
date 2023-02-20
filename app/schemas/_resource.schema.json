@@ -1,0 +1,276 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/_resource.schema.json",
+  "title": "Resource",
+  "description": "An API resource",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "documentationURL": {
+      "description": "URL to API resource documentation",
+      "type": "string",
+      "default": "",
+      "examples": [
+        "https://developer.xero.com/documentation/api/accounting/accounts"
+      ]
+    },
+    "authId": {
+      "description": "The authorization object used to authenticate",
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z]+(_[a-z]+)*$",
+          "default": "",
+          "examples": [
+            "simple",
+            "base",
+            "api_key"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "parent": {
+      "description": "resourceId of the base resource object",
+      "type": "string",
+      "default": "",
+      "examples": [
+        "base"
+      ]
+    },
+    "hidden": {
+      "description": "Hide the resource from",
+      "type": "boolean",
+      "default": false
+    },
+    "resourceId": {
+      "description": "Unique identifier for the API resource",
+      "type": "string",
+      "uniqueItems": true,
+      "pattern": "^[a-zA-Z]+(_[a-zA-Z]+)*$",
+      "default": "",
+      "examples": [
+        "status",
+        "users",
+        "project_tasks"
+      ]
+    },
+    "idField": {
+      "description": "Field representing the resource ID (defaults to first field that equals `id` or ends with either `_id` or `Id`)",
+      "type": "string",
+      "default": ""
+    },
+    "nameField": {
+      "description": "Field representing the resource name (defaults to first field that equals or ends with `name`)",
+      "type": "string",
+      "default": ""
+    },
+    "resourceName": {
+      "description": "What the resource is named in the API URL (defaults to `resourceId`)",
+      "type": "string",
+      "default": "",
+      "examples": [
+        "connections",
+        "projectsusers",
+        "Contacts"
+      ]
+    },
+    "rid": {
+      "description": "Currently active resource",
+      "type": "string",
+      "default": "",
+      "examples": [
+        "$COMPANY_ID",
+        "$SHEET_ID",
+        "nerevugroup"
+      ]
+    },
+    "subkey": {
+      "description": "The path to extract from the parsed API response (should return a list of items)",
+      "type": "string",
+      "default": "",
+      "examples": [
+        "items"
+      ]
+    },
+    "resultKey": {
+      "description": "The path to extract from the parsed API response (should return a list of items)",
+      "type": "string",
+      "default": "result",
+      "examples": [
+        "Contacts",
+        "result"
+      ]
+    },
+    "subresource": {
+      "description": "What the sub resource is named in the API URL",
+      "type": "string",
+      "default": "",
+      "examples": [
+        "OnlineInvoice",
+        "tasks"
+      ]
+    },
+    "srid": {
+      "description": "Currently active sub resource",
+      "type": "string",
+      "default": "",
+      "examples": [
+        "$CLOUDFRONT_DISTRIBUTION_ID",
+        "quick_brown_fox",
+        "shy-black-bear"
+      ]
+    },
+    "headers": {
+      "description": "HTTP headers to include with requests (case sensitive)",
+      "type": "object",
+      "default": {},
+      "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/headers.schema.json"
+    },
+    "eof": {
+      "description": "Is resource at the end of the stream?",
+      "type": "boolean",
+      "default": false
+    },
+    "useDefault": {
+      "description": "Use default",
+      "type": "boolean",
+      "default": false
+    },
+    "dumpData": {
+      "description": "`json.dumps` data for POST/PATCH requests",
+      "type": "boolean",
+      "default": false
+    },
+    "dictify": {
+      "description": "Convert response to a dictionary",
+      "type": "boolean",
+      "default": false
+    },
+    "pos": {
+      "description": "Starting position item to fetch",
+      "type": "number",
+      "default": 0
+    },
+    "start": {
+      "description": "The first date to fetch data from",
+      "type": "string",
+      "format": "date",
+      "default": ""
+    },
+    "end": {
+      "description": "The last date to fetch data for (defaults to today)",
+      "type": "string",
+      "format": "date",
+      "default": ""
+    },
+    "days": {
+      "description": "The the number of days to fetch data for",
+      "type": "number",
+      "default": 0
+    },
+    "fields": {
+      "description": "Resource fields to save from the parsed API response",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string",
+        "default": "",
+        "examples": [
+          "id",
+          "name",
+          "createdBy"
+        ]
+      }
+    },
+    "methods": {
+      "description": "HTTP methods this resource allows",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string",
+        "default": "GET",
+        "pattern": "GET|POST|PATCH|PUT|DELETE"
+      }
+    },
+    "url": {
+      "description": "The url of a resource endpoint",
+      "type": "string",
+      "default": ""
+    },
+    "attrs": {
+      "type": "object",
+      "default": {},
+      "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/attribute.schema.json"
+    },
+    "note": {
+      "description": "Space to document API inconsistencies",
+      "type": "string",
+      "default": ""
+    },
+    "example": {
+      "description": "An example API request",
+      "type": "string",
+      "default": ""
+    },
+    "params": {
+      "type": "object",
+      "default": {},
+      "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/attribute.schema.json"
+    },
+    "filter": {
+      "description": "description",
+      "type": "object",
+      "default": {},
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "description": "description",
+          "type": "string",
+          "default": "",
+          "examples": [
+            "Status"
+          ]
+        },
+        "value": {
+          "description": "description",
+          "type": "string",
+          "default": "",
+          "examples": [
+            "VOIDED"
+          ]
+        },
+        "comparator": {
+          "description": "description",
+          "type": "string",
+          "pattern": "NOT|GT|GTE|LT|LTE|EQ",
+          "default": "",
+          "examples": [
+            "NOT"
+          ]
+        }
+      },
+      "required": [
+        "field",
+        "value",
+        "comparator"
+      ]
+    }
+  },
+  "anyOf": [
+    {
+      "required": [
+        "resourceId",
+        "authId"
+      ]
+    },
+    {
+      "required": [
+        "resourceId",
+        "parent"
+      ]
+    }
+  ]
+}

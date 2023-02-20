@@ -19,6 +19,31 @@
         "timely"
       ]
     },
+    "resources": {
+      "description": "Resources exposed by 3rd party API",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "default": {},
+        "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/resource.schema.json"
+      }
+    },
+    "statusResourceId": {
+      "description": "The resourceId of a resource to redirect to after authenticating the user",
+      "type": "string",
+      "pattern": "^[a-zA-Z]+(_[a-zA-Z]+)*$",
+      "default": "status",
+      "examples": [
+        "status",
+        "account",
+        "domains"
+      ]
+    },
+    "statusResource": {
+      "description": "The resource represented by the statusResourceId",
+      "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/status-resource.schema.json"
+    },
     "auths": {
       "description": "Authentication methods accepted by API provider",
       "type": "array",
@@ -32,6 +57,7 @@
   },
   "required": [
     "auths",
-    "prefix"
+    "prefix",
+    "resources"
   ]
 }

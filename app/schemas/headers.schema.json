@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/headers.schema.json",
+  "title": "Headers",
+  "description": "HTTP headers to include with requests (case sensitive)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "ALL": {
+      "description": "Include in all requests",
+      "type": "object",
+      "default": {},
+      "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/attribute.schema.json"
+    },
+    "GET": {
+      "description": "Include only in GET requests",
+      "type": "object",
+      "default": {},
+      "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/attribute.schema.json"
+    },
+    "POST": {
+      "description": "Include only in POST requests",
+      "type": "object",
+      "default": {},
+      "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/attribute.schema.json"
+    },
+    "PUT": {
+      "description": "Include only in PUT requests",
+      "type": "object",
+      "default": {},
+      "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/attribute.schema.json"
+    },
+    "PATCH": {
+      "description": "Include only in PATCH requests",
+      "type": "object",
+      "default": {},
+      "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/attribute.schema.json"
+    },
+    "DELETE": {
+      "description": "Include only in DELETE requests",
+      "type": "object",
+      "default": {},
+      "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/attribute.schema.json"
+    }
+  }
+}

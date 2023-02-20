@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/status-resource.schema.json",
+  "title": "Status Resource",
+  "description": "An API status resource",
+  "type": "object",
+  "allOf": [
+    {
+      "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/_resource.schema.json"
+    }
+  ]
+}

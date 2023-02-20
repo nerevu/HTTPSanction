@@ -7,8 +7,20 @@
   "additionalProperties": {
     "oneOf": [
       {
+        "type": "array",
+        "default": [],
+        "items": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      {
         "type": "string",
         "default": ""
+      },
+      {
+        "type": "null",
+        "default": null
       },
       {
         "type": "integer",
@@ -17,6 +29,56 @@
       {
         "type": "boolean",
         "default": false
+      },
+      {
+        "type": "object",
+        "default": {},
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "description": "Path to the attribute relative to the Status resource json response",
+            "type": "string",
+            "default": "",
+            "examples": [
+              "result[0].tenantId"
+            ]
+          },
+          "conditional": {
+            "description": "description",
+            "type": "object",
+            "default": {},
+            "additionalProperties": false,
+            "properties": {
+              "test": {
+                "description": "description",
+                "type": "string",
+                "default": "",
+                "examples": [
+                  "rid"
+                ]
+              },
+              "result": {
+                "description": "description",
+                "type": "array",
+                "default": [],
+                "items": {
+                  "type": "string",
+                  "default": "",
+                  "examples": [
+                    "items",
+                    "list"
+                  ]
+                }
+              }
+            }
+          },
+          "func": {
+            "description": "Function to apply to the Status resource json response",
+            "type": "string",
+            "default": "",
+            "examples": []
+          }
+        }
       }
     ]
   }
