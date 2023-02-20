@@ -5,18 +5,18 @@
 
     Provides OAuth authentication functionality
 """
-from time import sleep
 from dataclasses import asdict, dataclass, field
 from datetime import datetime as dt, timedelta, timezone
+from enum import Enum, auto
 from functools import partial
 from itertools import chain
 from json import JSONDecodeError
+from random import uniform
+from shlex import quote
 from tempfile import NamedTemporaryFile
+from time import sleep
 from typing import Union
 from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse
-from enum import Enum, auto
-from shlex import quote
-from random import uniform
 
 import pygogo as gogo
 import requests
@@ -32,10 +32,10 @@ from flask import (
     url_for,
 )
 from oauthlib.oauth2 import (
-    TokenExpiredError,
-    LegacyApplicationClient,
     BackendApplicationClient,
+    LegacyApplicationClient,
     MobileApplicationClient,
+    TokenExpiredError,
 )
 from requests.auth import AuthBase, HTTPBasicAuth
 from requests.exceptions import ChunkedEncodingError, ConnectionError
@@ -47,7 +47,7 @@ from app import LOG_LEVELS, cache
 from app.headless import headless_auth
 from app.helpers import flask_formatter as formatter, get_verbosity
 from app.providers import Authentication
-from app.utils import uncache_header, jsonify, get_links, delete_cache
+from app.utils import delete_cache, get_links, jsonify, uncache_header
 from config import Config
 
 logger = gogo.Gogo(
@@ -980,7 +980,16 @@ def get_json(url, client, **kwargs):
     return (json, unscoped, result)
 
 
-def get_json_response(url, client, retry_cnt=0, init_backoff=1, max_retries=5, success_code=200, method="get", **kwargs):
+def get_json_response(
+    url,
+    client,
+    retry_cnt=0,
+    init_backoff=1,
+    max_retries=5,
+    success_code=200,
+    method="get",
+    **kwargs,
+):
     params = kwargs.get("params")
     unscoped = False
     result = None
@@ -1048,7 +1057,9 @@ def get_json_response(url, client, retry_cnt=0, init_backoff=1, max_retries=5, s
     return json
 
 
-def get_redirect_url(prefix: str, auth: Authentication = None) -> tuple[str, AuthClientTypes]:
+def get_redirect_url(
+    prefix: str, auth: Authentication = None
+) -> tuple[str, AuthClientTypes]:
     """Retrieve an access token.
 
     The user has been redirected back from the provider to your registered

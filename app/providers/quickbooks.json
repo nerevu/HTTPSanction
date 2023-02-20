@@ -7,8 +7,14 @@
       "documentationURL": "https://developer.intuit.com/app/developer/qbo/docs/develop/authentication-and-authorization/oauth-2.0",
       "authorizationBaseURL": "https://appcenter.intuit.com/connect/oauth2",
       "tokenURL": "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer",
-      "scope": ["com.intuit.quickbooks.accounting"],
-      "headers": {"ALL": {"Content-Type": "application/json"}}
+      "scope": [
+        "com.intuit.quickbooks.accounting"
+      ],
+      "headers": {
+        "ALL": {
+          "Content-Type": "application/json"
+        }
+      }
     },
     {
       "authId": "live",

@@ -30,7 +30,11 @@
           "description": "google email",
           "content": "$GOOGLE_USERNAME"
         },
-        {"selector": "//next", "description": "next", "action": "submit"},
+        {
+          "selector": "//next",
+          "description": "next",
+          "action": "submit"
+        },
         {
           "selector": "[type=\"password\"]",
           "description": "google password",

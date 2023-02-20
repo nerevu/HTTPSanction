@@ -10,6 +10,7 @@ from dataclasses import asdict
 from os import getenv, path as p
 
 import pygogo as gogo
+
 from dotenv import load_dotenv
 
 from app.helpers import flask_formatter as formatter, toposort

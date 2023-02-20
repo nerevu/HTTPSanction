@@ -229,7 +229,15 @@
     }
   },
   "anyOf": [
-      {"required": ["authId"]},
-      {"required": ["authType"]}
-    ]
+    {
+      "required": [
+        "authId"
+      ]
+    },
+    {
+      "required": [
+        "authType"
+      ]
+    }
+  ]
 }

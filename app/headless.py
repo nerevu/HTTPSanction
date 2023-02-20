@@ -9,11 +9,10 @@ from functools import partial
 
 import pygogo as gogo
 
-from app.helpers import flask_formatter as formatter
-from app.utils import fetch_value
-
 from playwright.sync_api import sync_playwright
 
+from app.helpers import flask_formatter as formatter
+from app.utils import fetch_value
 
 logger = gogo.Gogo(
     __name__, low_formatter=formatter, high_formatter=formatter, monolog=True

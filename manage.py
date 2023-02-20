@@ -31,16 +31,11 @@ from pyjson5 import Json5EOF
 from app import create_app
 from app.helpers import configure, email_hdlr, exception_hook
 from app.providers import Provider, provider_from_dict
+from app.route_helpers import augment_auth, get_authentication, validate_providers
 from app.routes.api import (
     create_blueprint_route,
     create_home_route,
     create_method_view_route,
-)
-
-from app.route_helpers import (
-    augment_auth,
-    get_authentication,
-    validate_providers,
 )
 
 try:
@@ -136,15 +131,24 @@ def manager(script_info, ctx, verbose=0, quiet=False, **kwargs):
         environ["PORT"] = str(script_info.port)
 
         for api_config in gen_api_configs():
-            [create_method_view_route(params) for params in api_config.method_view_route_params]
-            [create_blueprint_route(params) for params in api_config.blueprint_route_params]
+            [
+                create_method_view_route(params)
+                for params in api_config.method_view_route_params
+            ]
+            [
+                create_blueprint_route(params)
+                for params in api_config.blueprint_route_params
+            ]
             create_home_route(api_config.description, api_config.message)
 
             for provider in gen_providers(api_config):
                 authentication = get_authentication(*provider.auths)
                 augment_auth(provider, authentication)
                 ckwargs = {"prefix": provider.prefix, "auth": authentication}
-                [create_method_view_route(params, **ckwargs) for params in api_config.auth_route_params]
+                [
+                    create_method_view_route(params, **ckwargs)
+                    for params in api_config.auth_route_params
+                ]
     else:
         verbose = ctx.params["verbose"]
 

@@ -4,8 +4,8 @@
 Provides Auth routes.
 
 """
-from pathlib import Path
 from html import unescape
+from pathlib import Path
 
 import pygogo as gogo
 
@@ -20,11 +20,11 @@ from flask import (
 )
 
 from app import LOG_LEVELS, cache
-from app.authclient import AuthClientTypes, callback, get_auth_client, FLOW_TYPES
+from app.authclient import FLOW_TYPES, AuthClientTypes, callback, get_auth_client
 from app.helpers import flask_formatter as formatter, get_verbosity
 from app.providers import Authentication
 from app.routes import PatchedMethodView
-from app.utils import jsonify, get_links
+from app.utils import get_links, jsonify
 
 logger = gogo.Gogo(
     __name__, low_formatter=formatter, high_formatter=formatter, monolog=True
@@ -43,7 +43,11 @@ class BaseView(PatchedMethodView):
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
-        kwargs = {"verbosity": app.config["VERBOSITY"], "debug": self.auth.debug, **app.config}
+        kwargs = {
+            "verbosity": app.config["VERBOSITY"],
+            "debug": self.auth.debug,
+            **app.config,
+        }
         self.methods = self.methods or ["GET"]
         self.verbosity = get_verbosity(**kwargs)
         logger.setLevel(LOG_LEVELS.get(self.verbosity))

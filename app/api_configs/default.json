@@ -26,7 +26,10 @@
       "name": "auth",
       "module": "app.routes.auth",
       "className": "Auth",
-      "methods": ["GET", "PATCH"]
+      "methods": [
+        "GET",
+        "PATCH"
+      ]
     }
   ],
   "blueprintRouteParams": [
