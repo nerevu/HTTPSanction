@@ -31,7 +31,7 @@ from mezmorize.utils import get_cache_config, get_cache_type
 
 from app.helpers import configure, email_hdlr, flask_formatter, get_verbosity
 
-__version__ = "0.33.0"
+__version__ = "0.34.0"
 __title__ = "HTTPSanction"
 __package_name__ = "HTTPSanction"
 __author__ = "Reuben Cummings"

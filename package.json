@@ -1,6 +1,6 @@
 {
   "name": "HTTPSanction",
-  "version": "0.33.0",
+  "version": "0.34.0",
   "description": " A universal API authentication, integration, and verification Python library ",
   "scripts": {},
   "eslintConfig": {
