@@ -7,6 +7,7 @@
       "documentationURL": "https://developer.intuit.com/app/developer/qbo/docs/develop/authentication-and-authorization/oauth-2.0",
       "authorizationBaseURL": "https://appcenter.intuit.com/connect/oauth2",
       "tokenURL": "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer",
+      "revokeUrl": "https://developer.api.intuit.com/v2/oauth2/tokens/revoke",
       "scope": [
         "com.intuit.quickbooks.accounting"
       ],
@@ -14,6 +15,11 @@
         "ALL": {
           "Content-Type": "application/json"
         }
+      },
+      "params": {
+        "start": "start_date",
+        "end": "end_date",
+        "fields": "columns"
       }
     },
     {
@@ -35,6 +41,66 @@
       "clientSecret": "$QB_SANDBOX_CLIENT_SECRET",
       "attrs": {
         "realmId": "$QB_SANDBOX_REALM_ID"
+      }
+    }
+  ],
+  "statusResourceId": "companyinfo",
+  "resources": [
+    {
+      "resourceId": "companyinfo",
+      "authId": "sandbox",
+      "rid": "{realm_id}"
+    },
+    {
+      "resourceId": "Transactions",
+      "documentationURL": "https://developer.intuit.com/app/developer/qbo/docs/api/accounting/report-entities/transactionlist",
+      "authId": "sandbox",
+      "resourceName": "reports",
+      "rid": "TransactionList",
+      "params": {
+        "columns": [
+          "account_name",
+          "doc_num",
+          "is_ar_paid",
+          "is_ap_paid",
+          "is_cleared",
+          "is_no_post",
+          "memo",
+          "name",
+          "other_account",
+          "sales_cust1",
+          "sales_cust2",
+          "sales_cust3",
+          "tracking_num",
+          "tx_date",
+          "txn_type",
+          "subt_nat_amount",
+          "net_amount"
+        ]
+      }
+    },
+    {
+      "resourceId": "Invoices",
+      "parent": "Transactions",
+      "params": {
+        "transaction_type": "Invoice",
+        "arpaid": "All"
+      }
+    },
+    {
+      "resourceId": "PurchaseOrders",
+      "note": "po only returns payments for some reason",
+      "parent": "Transactions",
+      "params": {
+        "transaction_type": "PurchaseOrder",
+        "appaid": "All"
+      }
+    },
+    {
+      "resourceId": "Payments",
+      "parent": "Transactions",
+      "params": {
+        "transaction_type": "ReceivePayment"
       }
     }
   ]

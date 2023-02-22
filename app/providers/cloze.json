@@ -2,13 +2,27 @@
   "prefix": "cloze",
   "auths": [
     {
+      "authId": "custom",
       "authType": "custom",
       "apiBaseURL": "https://api.cloze.com/v1",
       "documentationURL": "https://api.cloze.com/api-docs",
+      "example": "GET {api_base_url}/project_segments/get --data '{{\"user\": client.username, \"api_key\": client.password}}",
       "params": {
         "user": "$CLOZE_EMAIL",
         "api_key": "$CLOZE_API_KEY"
       }
+    }
+  ],
+  "resources": [
+    {
+      "resourceId": "stages",
+      "authId": "custom",
+      "resourceName": "project_segments"
+    },
+    {
+      "resourceId": "status",
+      "authId": "custom",
+      "resourceName": "profile"
     }
   ]
 }

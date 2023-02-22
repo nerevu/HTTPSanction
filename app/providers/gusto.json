@@ -2,6 +2,7 @@
   "prefix": "gusto",
   "auths": [
     {
+      "authId": "oauth",
       "authType": "oauth2",
       "apiBaseURL": "https://api.gusto-demo.com/v1",
       "documentationURL": "https://docs.gusto.com/docs/api",
@@ -9,12 +10,48 @@
       "tokenURL": "https://api.gusto-demo.com/oauth/token",
       "clientId": "$GUSTO_CLIENT_ID",
       "clientSecret": "$GUSTO_SECRET",
+      "paramMap": {
+        "start": "start_date",
+        "end": "end_date"
+      },
       "scope": [
         "public",
         "payrolls.read",
         "employees.read",
         "companies.read"
       ]
+    }
+  ],
+  "resources": [
+    {
+      "resourceId": "companies",
+      "authId": "oauth",
+      "rid": "$GUSTO_COMPANY_ID"
+    },
+    {
+      "resourceId": "employees",
+      "authId": "oauth",
+      "resourceName": "companies",
+      "rid": "$GUSTO_COMPANY_ID",
+      "subresource": "employees"
+    },
+    {
+      "resourceId": "status",
+      "authId": "oauth",
+      "resourceName": "me"
+    },
+    {
+      "resourceId": "payments",
+      "authId": "oauth",
+      "resourceName": "companies",
+      "rid": "$GUSTO_COMPANY_ID",
+      "subresource": "contractor_payments"
+    },
+    {
+      "resourceId": "payrolls",
+      "authId": "oauth",
+      "rid": "$GUSTO_COMPANY_ID",
+      "subresource": "contractor_payments"
     }
   ]
 }

@@ -7,6 +7,7 @@
       "documentationURL": "https://documentation.mailgun.com/en/latest/api_reference.html",
       "username": "api",
       "password": "$MAILGUN_API_KEY",
+      "dataKey": "data",
       "attrs": {
         "domain": "$MAILGUN_DOMAIN"
       }
@@ -21,6 +22,54 @@
       "parent": "base",
       "isDefault": true,
       "apiBaseURL": "https://api.mailgun.net/v3"
+    }
+  ],
+  "statusResourceId": "Domains",
+  "resources": [
+    {
+      "resourceId": "Domains",
+      "authId": "account",
+      "subkey": "domain"
+    },
+    {
+      "resourceId": "EmailLists",
+      "authId": "account",
+      "idField": "address",
+      "resourceName": "lists",
+      "rid": "{list_prefix}@{domain}",
+      "subkey": "list",
+      "attrs": {
+        "list_prefix": "$MAILGUN_LIST_PREFIX"
+      }
+    },
+    {
+      "resourceId": "EmailListMembers",
+      "parent": "EmailLists",
+      "subresource": "members",
+      "attrs": {
+        "subkey": {
+          "conditional": {
+            "test": "rid",
+            "result": [
+              "items",
+              "list"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "resourceId": "Email",
+      "authId": "account",
+      "idField": "MessageID",
+      "resourceName": "messages",
+      "attrs": {
+        "admin_email": "$ADMIN_EMAIL",
+        "admin_name": "$ADMIN_NAME"
+      },
+      "methods": [
+        "POST"
+      ]
     }
   ]
 }

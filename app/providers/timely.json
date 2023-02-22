@@ -2,15 +2,24 @@
   "prefix": "timely",
   "auths": [
     {
+      "authId": "oauth",
       "authType": "oauth2",
       "apiBaseURL": "https://api.timelyapp.com/1.1/{accountId}",
       "authorizationBaseURL": "https://api.timelyapp.com/1.1/oauth/authorize",
-      "documentationURL": "https://app.timelyapp.com/777870/oauth_applications",
+      "documentationURL": "https://app.timelyapp.com/{accountId}/oauth_applications",
       "tokenURL": "https://api.timelyapp.com/1.1/oauth/token",
       "clientId": "$TIMELY_CLIENT_ID",
       "clientSecret": "$TIMELY_SECRET",
       "username": "$TIMELY_USERNAME",
       "password": "$TIMELY_PASSWORD",
+      "singularize": true,
+      "methodMap": {
+        "PATCH": "PUT"
+      },
+      "paramMap": {
+        "start": "since",
+        "end": "upto"
+      },
       "attrs": {
         "accountId": "$TIMELY_ACCOUNT_ID"
       },
@@ -45,6 +54,107 @@
           "description": "google submit",
           "action": "click"
         }
+      ]
+    }
+  ],
+  "statusResourceId": "accounts",
+  "resources": [
+    {
+      "resourceId": "projects",
+      "authId": "oauth",
+      "fields": [
+        "id",
+        "name",
+        "active",
+        "billable",
+        "client.id",
+        "client.name",
+        "budget"
+      ],
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "resourceId": "time",
+      "authId": "oauth",
+      "resourceName": "events",
+      "fields": [
+        "id",
+        "day",
+        "duration.total_minutes",
+        "label_ids",
+        "project.id",
+        "user.id",
+        "note",
+        "billed"
+      ],
+      "methods": [
+        "GET",
+        "PATCH"
+      ]
+    },
+    {
+      "resourceId": "ProjectTime",
+      "authId": "oauth",
+      "resourceName": "projects",
+      "subresource": "events",
+      "fields": [
+        "id",
+        "day",
+        "duration.total_minutes",
+        "label_ids",
+        "project.id",
+        "user.id",
+        "note",
+        "billed"
+      ],
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "resourceId": "ProjectTasks",
+      "authId": "oauth",
+      "subkey": "labels",
+      "resourceName": "projects",
+      "useDefault": true,
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "resourceId": "tasks",
+      "authId": "oauth",
+      "resourceName": "labels",
+      "fields": [
+        "id",
+        "name",
+        "children"
+      ]
+    },
+    {
+      "resourceId": "users",
+      "authId": "oauth",
+      "fields": [
+        "id",
+        "name"
+      ]
+    },
+    {
+      "resourceId": "accounts",
+      "authId": "oauth"
+    },
+    {
+      "resourceId": "contacts",
+      "authId": "oauth",
+      "resourceName": "clients",
+      "fields": [
+        "id",
+        "name"
       ]
     }
   ]

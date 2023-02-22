@@ -5,10 +5,18 @@
       "authType": "bearer",
       "apiBaseURL": "https://api.airtable.com/v0/{baseId}",
       "documentationURL": "https://airtable.com/{baseId}/api/docs",
+      "params": {
+        "maxRecords": 2048,
+        "pageSize": 100,
+        "offset": null,
+        "view": null
+      },
+      "subkey": "records",
       "attrs": {
         "token": "$AIRTABLE_API_KEY",
         "baseId": "$AIRTABLE_BASE_ID"
       }
     }
-  ]
+  ],
+  "resources": []
 }

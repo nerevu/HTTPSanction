@@ -6,7 +6,7 @@
       "apiBaseURL": "https://api.github.com"
     },
     {
-      "authId": "oauth2",
+      "authId": "oauth",
       "authType": "oauth2",
       "parent": "base",
       "documentationURL": "https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps",
@@ -41,5 +41,6 @@
         }
       }
     }
-  ]
+  ],
+  "resources": []
 }

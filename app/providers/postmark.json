@@ -10,6 +10,10 @@
         "ALL": {
           "Content-Type": "application/json"
         }
+      },
+      "params": {
+        "count": 100,
+        "offset": 0
       }
     },
     {
@@ -29,6 +33,41 @@
         "ALL": {
           "X-Postmark-Server-Token": "$POSTMARK_SERVER_TOKEN"
         }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "resourceId": "domains",
+      "authId": "account",
+      "subkey": "Domains",
+      "idField": "ID",
+      "nameField": "Name"
+    },
+    {
+      "resourceId": "status",
+      "parent": "domains"
+    },
+    {
+      "resourceId": "templates",
+      "authId": "server",
+      "subkey": "Templates",
+      "idField": "TemplateId",
+      "nameField": "Name"
+    },
+    {
+      "resourceId": "email",
+      "authId": "account",
+      "idField": "MessageID",
+      "methods": [
+        "POST"
+      ],
+      "nameField": "To",
+      "attrs": {
+        "template_id": null,
+        "admin_email": "$ADMIN_EMAIL",
+        "admin_name": "$ADMIN_NAME",
+        "sender": "{sender_name} <{sender_email}>"
       }
     }
   ]
