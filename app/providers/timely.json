@@ -59,7 +59,10 @@
     },
     {
       "authId": "standard",
-      "apiBaseURL": "https://api.timelyapp.com/1.1/{accountId}"
+      "apiBaseURL": "https://api.timelyapp.com/1.1/{accountId}",
+      "attrs": {
+        "pid": "$TIMELY_PROJECT_ID"
+      }
     }
   ],
   "statusResourceId": "accounts",
@@ -84,7 +87,7 @@
     {
       "resourceId": "time",
       "authId": "standard",
-      "resourceName": "events",
+      "resourcePath": "events",
       "fields": [
         "id",
         "day",
@@ -103,8 +106,7 @@
     {
       "resourceId": "ProjectTime",
       "authId": "standard",
-      "resourceName": "projects",
-      "subresource": "events",
+      "resourcePath": "projects/{pid}/events",
       "fields": [
         "id",
         "day",
@@ -124,7 +126,7 @@
       "resourceId": "ProjectTasks",
       "authId": "standard",
       "subkey": "labels",
-      "resourceName": "projects",
+      "resourcePath": "projects",
       "useDefault": true,
       "methods": [
         "GET",
@@ -134,7 +136,7 @@
     {
       "resourceId": "tasks",
       "authId": "standard",
-      "resourceName": "labels",
+      "resourcePath": "labels",
       "fields": [
         "id",
         "name",
@@ -156,7 +158,7 @@
     {
       "resourceId": "contacts",
       "authId": "standard",
-      "resourceName": "clients",
+      "resourcePath": "clients",
       "fields": [
         "id",
         "name"

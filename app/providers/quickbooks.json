@@ -48,15 +48,14 @@
   "resources": [
     {
       "resourceId": "companyinfo",
-      "authId": "sandbox",
-      "rid": "{realmId}"
+      "resourcePath": "companyinfo/{realmId}",
+      "authId": "sandbox"
     },
     {
       "resourceId": "Transactions",
+      "resourcePath": "reports/{rid}/TransactionList",
       "documentationURL": "https://developer.intuit.com/app/developer/qbo/docs/api/accounting/report-entities/transactionlist",
       "authId": "sandbox",
-      "resourceName": "reports",
-      "rid": "TransactionList",
       "params": {
         "columns": [
           "account_name",
@@ -77,6 +76,9 @@
           "subt_nat_amount",
           "net_amount"
         ]
+      },
+      "attrs": {
+        "rid": "$REPORT_ID"
       }
     },
     {

@@ -334,6 +334,7 @@ class OAuth2Client(OAuth2BaseClient):
         token = {}
         kwargs = {}
         self.error = ""
+        isBackend = self.flow_enum == FlowTypes.BACKEND
         isMobile = self.flow_enum == FlowTypes.MOBILE
 
         if self.flow_enum == FlowTypes.WEB:
@@ -352,10 +353,10 @@ class OAuth2Client(OAuth2BaseClient):
                 "client_id": self.client_id,
                 "client_secret": self.client_secret,
             }
-        elif self.flow_enum == FlowTypes.BACKEND and self.requires_basic_auth:
+        elif isBackend and self.requires_basic_auth:
             # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html#backend-application-flow
             kwargs = {"auth": HTTPBasicAuth(self.client_id, self.client_secret)}
-        elif self.flow_enum == FlowTypes.BACKEND:
+        elif isBackend:
             # https://requests-oauthlib.readthedocs.io/en/latest/oauth2_workflow.html#backend-application-flow
             kwargs = {"client_id": self.client_id, "client_secret": self.client_secret}
         elif isMobile:

@@ -67,7 +67,7 @@
       "type": "string",
       "default": ""
     },
-    "resourceName": {
+    "resourcePath": {
       "description": "What the resource is named in the API URL (defaults to `resourceId`)",
       "type": "string",
       "default": "",
@@ -75,16 +75,6 @@
         "connections",
         "projectsusers",
         "Contacts"
-      ]
-    },
-    "rid": {
-      "description": "Currently active resource",
-      "type": "string",
-      "default": "",
-      "examples": [
-        "$COMPANY_ID",
-        "$SHEET_ID",
-        "nerevugroup"
       ]
     },
     "subkey": {
@@ -104,32 +94,13 @@
         "result"
       ]
     },
-    "subresource": {
-      "description": "What the sub resource is named in the API URL",
-      "type": "string",
-      "default": "",
-      "examples": [
-        "OnlineInvoice",
-        "tasks"
-      ]
-    },
-    "srid": {
-      "description": "Currently active sub resource",
-      "type": "string",
-      "default": "",
-      "examples": [
-        "$CLOUDFRONT_DISTRIBUTION_ID",
-        "quick_brown_fox",
-        "shy-black-bear"
-      ]
-    },
     "headers": {
       "description": "HTTP headers to include with requests (case sensitive)",
       "type": "object",
       "default": {},
       "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/headers.schema.json"
     },
-    "eof": {
+    "_eof": {
       "description": "Is resource at the end of the stream?",
       "type": "boolean",
       "default": false
@@ -144,13 +115,23 @@
       "type": "boolean",
       "default": false
     },
+    "captureHTML": {
+      "description": "Get HTML instead of json response",
+      "type": "boolean",
+      "default": false
+    },
+    "randomUserAgent": {
+      "description": "Select a random (weighted) user agent string chosen from the useragents.me top 10 list.",
+      "type": "boolean",
+      "default": false
+    },
     "dictify": {
       "description": "Convert response to a dictionary",
       "type": "boolean",
       "default": false
     },
     "pos": {
-      "description": "Starting position item to fetch",
+      "description": "Current position item to fetch",
       "type": "number",
       "default": 0
     },

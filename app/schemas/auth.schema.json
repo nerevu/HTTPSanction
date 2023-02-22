@@ -86,9 +86,14 @@
       "default": "web",
       "pattern": "web|backend|legacy|mobile"
     },
-    "flowEnum": {
+    "_flowEnum": {
       "description": "OAuth2 flow enum",
       "type": "integer",
+      "default": false
+    },
+    "_augmented": {
+      "description": "The authentication has been augmented.",
+      "type": "boolean",
       "default": false
     },
     "requiresBasicAuth": {
@@ -171,11 +176,6 @@
       "type": "object",
       "default": {},
       "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/attribute.schema.json"
-    },
-    "ridLast": {
-      "description": "Place the resource ID *after* the subresource instead of before",
-      "type": "boolean",
-      "default": false
     },
     "headless": {
       "description": "Allow headless authentication",

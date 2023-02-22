@@ -33,7 +33,7 @@
     {
       "resourceId": "records",
       "authId": "public",
-      "resourceName": "$AIRTABLE_TABLE_ID",
+      "resourcePath": "$AIRTABLE_TABLE_ID",
       "subkey": "records"
     },
     {

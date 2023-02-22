@@ -18,7 +18,6 @@ from app.helpers import flask_formatter as formatter, toposort
 
 try:
     from app.providers import (
-        AttrClass,
         Authentication,
         AuthenticationHeaders,
         HeadlessElement,
@@ -29,13 +28,8 @@ try:
         ResourceHeaders,
     )
 except ImportError:
-    Authentication = (
-        Provider
-    ) = (
-        Resource
-    ) = (
-        AuthenticationHeaders
-    ) = MethodMap = ParamMap = HeadlessElement = AttrClass = ResourceHeaders = None
+    Authentication = AuthenticationHeaders = HeadlessElement = None
+    MethodMap = ParamMap = Provider = Resource = ResourceHeaders = None
 
 logger = gogo.Gogo(
     __name__, low_formatter=formatter, high_formatter=formatter, monolog=True
@@ -147,12 +141,6 @@ def _format(value, **kwargs):
     return formatted
 
 
-def gen_attrs(value):
-    for k, _v in value.items():
-        v = AttrClass.from_dict(_v) if hasattr(_v, "items") else _v
-        yield k, v
-
-
 def set_auth_attr(authentication: Authentication, key: str, value):
     converters = {
         "headers": AuthenticationHeaders.from_dict,
@@ -164,8 +152,6 @@ def set_auth_attr(authentication: Authentication, key: str, value):
         value = from_dict(value)
     elif key == "headless_elements":
         value = [HeadlessElement.from_dict(element) for element in value]
-    elif key in {"attrs", "params"}:
-        value = dict(gen_attrs(value))
 
     setattr(authentication, key, value)
 
@@ -173,8 +159,6 @@ def set_auth_attr(authentication: Authentication, key: str, value):
 def set_resource_attr(resource: Resource, key: str, value):
     if key == "headers":
         value = ResourceHeaders.from_dict(value)
-    elif key in {"attrs", "params"}:
-        value = dict(gen_attrs(value))
 
     setattr(resource, key, value)
 
@@ -220,14 +204,14 @@ def augment_resource(provider: Provider, resource: Resource):
 
         if parent:
             resource.auth_id = resource.auth_id or parent.auth_id
-            resource.resource_name = resource.resource_name or parent.resource_name
+            resource.resource_path = resource.resource_path or parent.resource_path
             # resource.parent = parent
         else:
             raise AssertionError(
                 f"No parent resource with resourceId {resource.parent} found."
             )
 
-    resource.resource_name = resource.resource_name or resource.resource_id
+    resource.resource_path = resource.resource_path or resource.resource_id
     authentication = get_authentication(*provider.auths, auth_id=resource.auth_id)
     kwargs = authentication.attrs or {}
     kwargs.update(resource.attrs or {})
@@ -237,7 +221,7 @@ def augment_resource(provider: Provider, resource: Resource):
             set_resource_attr(resource, k, formatted)
 
     assert resource.auth_id, f"{_resource} is missing auth_id!"
-    assert resource.resource_name, f"{_resource} is missing resource_name!"
+    assert resource.resource_path, f"{_resource} is missing resource_path!"
 
 
 def validate_providers(*args: Provider):

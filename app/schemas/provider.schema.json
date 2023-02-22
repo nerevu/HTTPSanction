@@ -6,6 +6,11 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "$schema": {
+      "description": "The $schema the provider should validate against",
+      "type": "string",
+      "default": ""
+    },
     "prefix": {
       "description": "Unique API provider identifier",
       "type": "string",

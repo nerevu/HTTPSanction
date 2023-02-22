@@ -21,6 +21,8 @@ from flask import (
     url_for,
 )
 
+from riko.dotdict import DotDict
+
 from app import LOG_LEVELS, cache
 from app.authclient import (
     FLOW_TYPES,
@@ -53,12 +55,7 @@ HEADERS = {"Accept": "application/json"}
 
 
 def get_resource_url(resource: Resource, auth: Authentication):
-    url = f"{auth.api_base_url}/{resource.resource_name}"
-
-    if resource.subresource and resource.rid:
-        url += f"/{resource.rid}/{resource.subresource}"
-    elif resource.subresource:
-        breakpoint()
+    url = f"{auth.api_base_url}/{resource.resource_path}"
 
     if auth.api_ext:
         url += f".{auth.api_ext}"
@@ -130,29 +127,9 @@ class BaseView(PatchedMethodView):
             args = (self.prefix, self.auth)
             self.client = get_auth_client(*args, **kwargs)
 
-
-class Callback(BaseView):
-    def get(self):
-        return callback(self.prefix, self.auth)
-
-
-class Auth(BaseView):
-    @property
-    def id(self):
-        if self.resource:
-            _id = self.resource.srid if self.resource.subresource else self.resource.rid
-        else:
-            _id = None
-
-        return _id
-
     @property
     def _params(self):
         params = {}
-
-        if self.id:
-            id_param = self.auth.param_map.id or "id"
-            params[id_param] = self.id
 
         if self.resource:
             params.update(self.resource.params or {})
@@ -203,6 +180,13 @@ class Auth(BaseView):
             url, self.client, headers=headers, params=self.params, **kwargs
         )
 
+
+class Callback(BaseView):
+    def get(self):
+        return callback(self.prefix, self.auth)
+
+
+class Auth(BaseView):
     def get(self):
         """Authenticate User.
 
@@ -279,37 +263,50 @@ class Auth(BaseView):
 class APIResource(BaseView):
     """An API Resource."""
 
-    def __attrs_post_init__(self, *args, **kwargs):
-        super().__attrs_post_init__()
-
-        if not self.resource.id_field:
-            try:
-                self.resource.id_field = next(
-                    f
-                    for f in self.resource.fields
-                    if f.lower().endswith("_id") or f.endswith("Id")
-                )
-            except StopIteration:
-                self.resource.id_field = "id"
-
-        if not self.resource.name_field:
-            try:
-                self.resource.name_field = next(
-                    f for f in self.resource.fields if f.lower().endswith("name")
-                )
-            except StopIteration:
-                self.resource.name_field = "name"
-
-        if not self.resource.start:
-            self.resource.start = dt.strptime(
-                self.resource.end, (self.resource.datefmt)
-            ) - timedelta(days=self.resource.days)
-
     @property
-    def lowered_resource(self):
-        return self.resource.resource_name.lower()
+    def api_url(self):
+        return get_resource_url(self.resource, self.auth)
 
-    @property
-    def lowered_subresource(self):
-        return self.resource.subresource.lower()
+    def parse_result(self, *args):
+        try:
+            result = args[self.resource.pos]
+        except (IndexError, TypeError):
+            result = None
+            self.resource.eof = True
+        else:
+            self.resource.id = result.get(self.resource.id_field)
 
+        return result
+
+    def get(self, **kwargs):
+        """Get an API Resource.
+        Kwargs:
+            rid (str): The API resource_id.
+
+        Examples:
+            >>> kwargs = {"rid": "abc", "subkey": "manufacturer"}
+            >>> opencart_manufacturer = Resource("OPENCART", "products", **kwargs)
+            >>> opencart_manufacturer.get()
+            >>>
+            >>> kwargs = {"subkey": "person"}
+            >>> cloze_person = Resource("CLOZE", "people", **kwargs)
+            >>> cloze_person.get(rid="name@company.com")
+            >>>
+            >>> kwargs = {"fields": ["name", "net_amount"], "start": start}
+            >>> qb_transactions = Resource("qb", "TransactionList", **kwargs)
+            >>> qb_transactions.get()
+        """
+        headers = self.get_headers("GET")
+        rkwargs = {"headers": headers, "params": self.params, **kwargs}
+        json = get_json_response(self.api_url, self.client, **rkwargs)
+        result = json.get("result")
+
+        if json["ok"]:
+            if self.resource.subkey:
+                result = DotDict(result).get(self.resource.subkey, result)
+
+            if self.resource.use_default and not self.resource.id:
+                result = self.parse_result(*result)
+
+        json["result"] = result
+        return jsonify(**json)

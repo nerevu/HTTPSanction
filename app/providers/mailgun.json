@@ -33,36 +33,32 @@
     },
     {
       "resourceId": "emailLists",
+      "resourcePath": "lists/{listPrefix}@{domain}",
       "authId": "account",
       "idField": "address",
-      "resourceName": "lists",
-      "rid": "{listPrefix}@{domain}",
       "subkey": "list",
       "attrs": {
-        "listPrefix": "$MAILGUN_LIST_PREFIX"
+        "listPrefix": "$MAILGUN_LIST_PREFIX",
+        "mid": "$MAILGUN_MEMBER_ID"
       }
+    },
+    {
+      "resourceId": "emailListMember",
+      "resourcePath": "lists/{listPrefix}@{domain}/members/{mid}",
+      "parent": "emailLists",
+      "subkey": "items"
     },
     {
       "resourceId": "emailListMembers",
+      "resourcePath": "lists/{listPrefix}@{domain}/members",
       "parent": "emailLists",
-      "subresource": "members",
-      "attrs": {
-        "subkey": {
-          "conditional": {
-            "test": "rid",
-            "result": [
-              "items",
-              "list"
-            ]
-          }
-        }
-      }
+      "subkey": "list"
     },
     {
       "resourceId": "Email",
+      "resourcePath": "messages",
       "authId": "account",
       "idField": "MessageID",
-      "resourceName": "messages",
       "attrs": {
         "admin_email": "$ADMIN_EMAIL",
         "admin_name": "$ADMIN_NAME"

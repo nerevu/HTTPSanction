@@ -19,6 +19,11 @@ import dateutil.parser
 T = TypeVar("T")
 
 
+def from_dict(f: Callable[[Any], T], x: Any) -> Dict[str, T]:
+    assert isinstance(x, dict)
+    return {k: f(v) for (k, v) in x.items()}
+
+
 def from_list(f: Callable[[Any], T], x: Any) -> List[T]:
     assert isinstance(x, list)
     return [f(y) for y in x]
@@ -26,6 +31,16 @@ def from_list(f: Callable[[Any], T], x: Any) -> List[T]:
 
 def from_str(x: Any) -> str:
     assert isinstance(x, str)
+    return x
+
+
+def from_bool(x: Any) -> bool:
+    assert isinstance(x, bool)
+    return x
+
+
+def from_int(x: Any) -> int:
+    assert isinstance(x, int) and not isinstance(x, bool)
     return x
 
 
@@ -48,21 +63,6 @@ def to_class(c: Type[T], x: Any) -> dict:
     return cast(Any, x).to_dict()
 
 
-def from_dict(f: Callable[[Any], T], x: Any) -> Dict[str, T]:
-    assert isinstance(x, dict)
-    return {k: f(v) for (k, v) in x.items()}
-
-
-def from_bool(x: Any) -> bool:
-    assert isinstance(x, bool)
-    return x
-
-
-def from_int(x: Any) -> int:
-    assert isinstance(x, int) and not isinstance(x, bool)
-    return x
-
-
 def from_float(x: Any) -> float:
     assert isinstance(x, (float, int)) and not isinstance(x, bool)
     return float(x)
@@ -78,78 +78,21 @@ def to_float(x: Any) -> float:
 
 
 @dataclass
-class Conditional:
-    """description"""
-
-    """description"""
-    result: Optional[List[str]]
-    """description"""
-    test: Optional[str]
-
-    @staticmethod
-    def from_dict(obj: Any) -> "Conditional":
-        assert isinstance(obj, dict)
-        result = from_union(
-            [lambda x: from_list(from_str, x), from_none], obj.get("result")
-        )
-        test = from_union([from_none, from_str], obj.get("test"))
-        return Conditional(result, test)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["result"] = from_union(
-            [lambda x: from_list(from_str, x), from_none], self.result
-        )
-        result["test"] = from_union([from_none, from_str], self.test)
-        return result
-
-
-@dataclass
-class AttrClass:
-    """description"""
-
-    conditional: Optional[Conditional]
-    """Function to apply to the Status resource json response"""
-    func: Optional[str]
-    """Path to the attribute relative to the Status resource json response"""
-    path: Optional[str]
-
-    @staticmethod
-    def from_dict(obj: Any) -> "AttrClass":
-        assert isinstance(obj, dict)
-        conditional = from_union(
-            [Conditional.from_dict, from_none], obj.get("conditional")
-        )
-        func = from_union([from_none, from_str], obj.get("func"))
-        path = from_union([from_none, from_str], obj.get("path"))
-        return AttrClass(conditional, func, path)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["conditional"] = from_union(
-            [lambda x: to_class(Conditional, x), from_none], self.conditional
-        )
-        result["func"] = from_union([from_none, from_str], self.func)
-        result["path"] = from_union([from_none, from_str], self.path)
-        return result
-
-
-@dataclass
 class AuthenticationHeaders:
     """HTTP headers to include with requests (case sensitive)"""
 
     """Include in all requests"""
-    all: Optional[Dict[str, Union[List[str], bool, AttrClass, int, None, str]]]
+    all: Optional[Dict[str, Union[List[str], bool, int, None, str]]]
     """Include only in DELETE requests"""
-    delete: Optional[Dict[str, Union[List[str], bool, AttrClass, int, None, str]]]
+    delete: Optional[Dict[str, Union[List[str], bool, int, None, str]]]
     """Include only in GET requests"""
-    get: Optional[Dict[str, Union[List[str], bool, AttrClass, int, None, str]]]
+    get: Optional[Dict[str, Union[List[str], bool, int, None, str]]]
     """Include only in PATCH requests"""
-    patch: Optional[Dict[str, Union[List[str], bool, AttrClass, int, None, str]]]
+    patch: Optional[Dict[str, Union[List[str], bool, int, None, str]]]
     """Include only in POST requests"""
-    post: Optional[Dict[str, Union[List[str], bool, AttrClass, int, None, str]]]
+    post: Optional[Dict[str, Union[List[str], bool, int, None, str]]]
     """Include only in PUT requests"""
-    put: Optional[Dict[str, Union[List[str], bool, AttrClass, int, None, str]]]
+    put: Optional[Dict[str, Union[List[str], bool, int, None, str]]]
 
     @staticmethod
     def from_dict(obj: Any) -> "AuthenticationHeaders":
@@ -161,7 +104,6 @@ class AuthenticationHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            AttrClass.from_dict,
                             from_int,
                             from_none,
                             from_str,
@@ -181,7 +123,6 @@ class AuthenticationHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            AttrClass.from_dict,
                             from_int,
                             from_none,
                             from_str,
@@ -201,7 +142,6 @@ class AuthenticationHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            AttrClass.from_dict,
                             from_int,
                             from_none,
                             from_str,
@@ -221,7 +161,6 @@ class AuthenticationHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            AttrClass.from_dict,
                             from_int,
                             from_none,
                             from_str,
@@ -241,7 +180,6 @@ class AuthenticationHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            AttrClass.from_dict,
                             from_int,
                             from_none,
                             from_str,
@@ -261,7 +199,6 @@ class AuthenticationHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            AttrClass.from_dict,
                             from_int,
                             from_none,
                             from_str,
@@ -285,7 +222,6 @@ class AuthenticationHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            lambda x: to_class(AttrClass, x),
                             from_int,
                             from_none,
                             from_str,
@@ -305,7 +241,6 @@ class AuthenticationHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            lambda x: to_class(AttrClass, x),
                             from_int,
                             from_none,
                             from_str,
@@ -325,7 +260,6 @@ class AuthenticationHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            lambda x: to_class(AttrClass, x),
                             from_int,
                             from_none,
                             from_str,
@@ -345,7 +279,6 @@ class AuthenticationHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            lambda x: to_class(AttrClass, x),
                             from_int,
                             from_none,
                             from_str,
@@ -365,7 +298,6 @@ class AuthenticationHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            lambda x: to_class(AttrClass, x),
                             from_int,
                             from_none,
                             from_str,
@@ -385,7 +317,6 @@ class AuthenticationHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            lambda x: to_class(AttrClass, x),
                             from_int,
                             from_none,
                             from_str,
@@ -407,32 +338,38 @@ class HeadlessElement:
 
     """User friendly identification of the element"""
     description: str
-    """CSS selector of the element"""
-    selector: str
     """Action to perform on the element"""
     action: Optional[str]
     """Text to send to the element (can't be mixed with `prompt`)"""
     content: Optional[str]
+    """Text contained in the element"""
+    find_text: Optional[str]
     """Text to display when requesting user input (can't be mixed with `content`)."""
     prompt: Optional[str]
+    """CSS selector of the element"""
+    selector: Optional[str]
 
     @staticmethod
     def from_dict(obj: Any) -> "HeadlessElement":
         assert isinstance(obj, dict)
         description = from_str(obj.get("description"))
-        selector = from_str(obj.get("selector"))
         action = from_union([from_none, from_str], obj.get("action"))
         content = from_union([from_none, from_str], obj.get("content"))
+        find_text = from_union([from_none, from_str], obj.get("findText"))
         prompt = from_union([from_none, from_str], obj.get("prompt"))
-        return HeadlessElement(description, selector, action, content, prompt)
+        selector = from_union([from_none, from_str], obj.get("selector"))
+        return HeadlessElement(
+            description, action, content, find_text, prompt, selector
+        )
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["description"] = from_str(self.description)
-        result["selector"] = from_str(self.selector)
         result["action"] = from_union([from_none, from_str], self.action)
         result["content"] = from_union([from_none, from_str], self.content)
+        result["findText"] = from_union([from_none, from_str], self.find_text)
         result["prompt"] = from_union([from_none, from_str], self.prompt)
+        result["selector"] = from_union([from_none, from_str], self.selector)
         return result
 
 
@@ -504,11 +441,15 @@ class ParamMap:
 class Authentication:
     """API authentication"""
 
+    """The authentication has been augmented."""
+    augmented: Optional[bool]
+    """OAuth2 flow enum"""
+    flow_enum: Optional[int]
     """Base API URL"""
     api_base_url: Optional[str]
     """Extension to place  at the end of API urls"""
     api_ext: Optional[str]
-    attrs: Optional[Dict[str, Union[List[str], bool, AttrClass, int, None, str]]]
+    attrs: Optional[Dict[str, Union[List[str], bool, int, None, str]]]
     """Unique identifier for the API resource"""
     auth_id: Optional[str]
     """The API authentication type"""
@@ -531,8 +472,6 @@ class Authentication:
     to extract from the json authentication result
     """
     extractions: Optional[Dict[str, str]]
-    """OAuth2 flow enum"""
-    flow_enum: Optional[int]
     """OAuth2 flow type: web -> Authorization Grant Type, mobile -> Implicit Code Grant Type,
     legacy -> Password Credentials Grant Type, backend -> Client Credentials Grant Type
     """
@@ -549,7 +488,7 @@ class Authentication:
     method_map: Optional[MethodMap]
     """Maps standard parameters to API specific parameters"""
     param_map: Optional[ParamMap]
-    params: Optional[Dict[str, Union[List[str], bool, AttrClass, int, None, str]]]
+    params: Optional[Dict[str, Union[List[str], bool, int, None, str]]]
     """The base authentication object"""
     parent: Optional[str]
     """The application password"""
@@ -564,8 +503,6 @@ class Authentication:
     requires_basic_auth: Optional[bool]
     """API OAuth token revocation URL"""
     revoke_url: Optional[str]
-    """Place the resource ID *after* the subresource instead of before"""
-    rid_last: Optional[bool]
     """The API permissions scope"""
     scope: Optional[List[str]]
     """Wrap data in a singularized resource name for POST/PATCH requests"""
@@ -580,6 +517,8 @@ class Authentication:
     @staticmethod
     def from_dict(obj: Any) -> "Authentication":
         assert isinstance(obj, dict)
+        augmented = from_union([from_bool, from_none], obj.get("_augmented"))
+        flow_enum = from_union([from_int, from_none], obj.get("_flowEnum"))
         api_base_url = from_union([from_none, from_str], obj.get("apiBaseURL"))
         api_ext = from_union([from_none, from_str], obj.get("apiExt"))
         attrs = from_union(
@@ -589,7 +528,6 @@ class Authentication:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            AttrClass.from_dict,
                             from_int,
                             from_none,
                             from_str,
@@ -618,7 +556,6 @@ class Authentication:
         extractions = from_union(
             [lambda x: from_dict(from_str, x), from_none], obj.get("extractions")
         )
-        flow_enum = from_union([from_int, from_none], obj.get("flowEnum"))
         flow_type = from_union([from_none, from_str], obj.get("flowType"))
         headers = from_union(
             [AuthenticationHeaders.from_dict, from_none], obj.get("headers")
@@ -638,7 +575,6 @@ class Authentication:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            AttrClass.from_dict,
                             from_int,
                             from_none,
                             from_str,
@@ -662,7 +598,6 @@ class Authentication:
             [from_bool, from_none], obj.get("requiresBasicAuth")
         )
         revoke_url = from_union([from_none, from_str], obj.get("revokeUrl"))
-        rid_last = from_union([from_bool, from_none], obj.get("ridLast"))
         scope = from_union(
             [lambda x: from_list(from_str, x), from_none], obj.get("scope")
         )
@@ -671,6 +606,8 @@ class Authentication:
         token_url = from_union([from_none, from_str], obj.get("tokenURL"))
         username = from_union([from_none, from_str], obj.get("username"))
         return Authentication(
+            augmented,
+            flow_enum,
             api_base_url,
             api_ext,
             attrs,
@@ -684,7 +621,6 @@ class Authentication:
             documentation_url,
             example,
             extractions,
-            flow_enum,
             flow_type,
             headers,
             headless,
@@ -700,7 +636,6 @@ class Authentication:
             refresh_url,
             requires_basic_auth,
             revoke_url,
-            rid_last,
             scope,
             singularize,
             subkey,
@@ -710,6 +645,8 @@ class Authentication:
 
     def to_dict(self) -> dict:
         result: dict = {}
+        result["_augmented"] = from_union([from_bool, from_none], self.augmented)
+        result["_flowEnum"] = from_union([from_int, from_none], self.flow_enum)
         result["apiBaseURL"] = from_union([from_none, from_str], self.api_base_url)
         result["apiExt"] = from_union([from_none, from_str], self.api_ext)
         result["attrs"] = from_union(
@@ -719,7 +656,6 @@ class Authentication:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            lambda x: to_class(AttrClass, x),
                             from_int,
                             from_none,
                             from_str,
@@ -748,7 +684,6 @@ class Authentication:
         result["extractions"] = from_union(
             [lambda x: from_dict(from_str, x), from_none], self.extractions
         )
-        result["flowEnum"] = from_union([from_int, from_none], self.flow_enum)
         result["flowType"] = from_union([from_none, from_str], self.flow_type)
         result["headers"] = from_union(
             [lambda x: to_class(AuthenticationHeaders, x), from_none], self.headers
@@ -772,7 +707,6 @@ class Authentication:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            lambda x: to_class(AttrClass, x),
                             from_int,
                             from_none,
                             from_str,
@@ -796,7 +730,6 @@ class Authentication:
             [from_bool, from_none], self.requires_basic_auth
         )
         result["revokeUrl"] = from_union([from_none, from_str], self.revoke_url)
-        result["ridLast"] = from_union([from_bool, from_none], self.rid_last)
         result["scope"] = from_union(
             [lambda x: from_list(from_str, x), from_none], self.scope
         )
@@ -839,17 +772,17 @@ class ResourceHeaders:
     """HTTP headers to include with requests (case sensitive)"""
 
     """Include in all requests"""
-    all: Optional[Dict[str, Union[List[str], bool, AttrClass, int, None, str]]]
+    all: Optional[Dict[str, Union[List[str], bool, int, None, str]]]
     """Include only in DELETE requests"""
-    delete: Optional[Dict[str, Union[List[str], bool, AttrClass, int, None, str]]]
+    delete: Optional[Dict[str, Union[List[str], bool, int, None, str]]]
     """Include only in GET requests"""
-    get: Optional[Dict[str, Union[List[str], bool, AttrClass, int, None, str]]]
+    get: Optional[Dict[str, Union[List[str], bool, int, None, str]]]
     """Include only in PATCH requests"""
-    patch: Optional[Dict[str, Union[List[str], bool, AttrClass, int, None, str]]]
+    patch: Optional[Dict[str, Union[List[str], bool, int, None, str]]]
     """Include only in POST requests"""
-    post: Optional[Dict[str, Union[List[str], bool, AttrClass, int, None, str]]]
+    post: Optional[Dict[str, Union[List[str], bool, int, None, str]]]
     """Include only in PUT requests"""
-    put: Optional[Dict[str, Union[List[str], bool, AttrClass, int, None, str]]]
+    put: Optional[Dict[str, Union[List[str], bool, int, None, str]]]
 
     @staticmethod
     def from_dict(obj: Any) -> "ResourceHeaders":
@@ -861,7 +794,6 @@ class ResourceHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            AttrClass.from_dict,
                             from_int,
                             from_none,
                             from_str,
@@ -881,7 +813,6 @@ class ResourceHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            AttrClass.from_dict,
                             from_int,
                             from_none,
                             from_str,
@@ -901,7 +832,6 @@ class ResourceHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            AttrClass.from_dict,
                             from_int,
                             from_none,
                             from_str,
@@ -921,7 +851,6 @@ class ResourceHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            AttrClass.from_dict,
                             from_int,
                             from_none,
                             from_str,
@@ -941,7 +870,6 @@ class ResourceHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            AttrClass.from_dict,
                             from_int,
                             from_none,
                             from_str,
@@ -961,7 +889,6 @@ class ResourceHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            AttrClass.from_dict,
                             from_int,
                             from_none,
                             from_str,
@@ -985,7 +912,6 @@ class ResourceHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            lambda x: to_class(AttrClass, x),
                             from_int,
                             from_none,
                             from_str,
@@ -1005,7 +931,6 @@ class ResourceHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            lambda x: to_class(AttrClass, x),
                             from_int,
                             from_none,
                             from_str,
@@ -1025,7 +950,6 @@ class ResourceHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            lambda x: to_class(AttrClass, x),
                             from_int,
                             from_none,
                             from_str,
@@ -1045,7 +969,6 @@ class ResourceHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            lambda x: to_class(AttrClass, x),
                             from_int,
                             from_none,
                             from_str,
@@ -1065,7 +988,6 @@ class ResourceHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            lambda x: to_class(AttrClass, x),
                             from_int,
                             from_none,
                             from_str,
@@ -1085,7 +1007,6 @@ class ResourceHeaders:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            lambda x: to_class(AttrClass, x),
                             from_int,
                             from_none,
                             from_str,
@@ -1107,9 +1028,13 @@ class Resource:
 
     """Unique identifier for the API resource"""
     resource_id: str
-    attrs: Optional[Dict[str, Union[List[str], bool, AttrClass, int, None, str]]]
+    """Is resource at the end of the stream?"""
+    eof: Optional[bool]
+    attrs: Optional[Dict[str, Union[List[str], bool, int, None, str]]]
     """The authorization object used to authenticate"""
     auth_id: Optional[str]
+    """Get HTML instead of json response"""
+    capture_html: Optional[bool]
     """The the number of days to fetch data for"""
     days: Optional[float]
     """Convert response to a dictionary"""
@@ -1120,8 +1045,6 @@ class Resource:
     dump_data: Optional[bool]
     """The last date to fetch data for (defaults to today)"""
     end: Optional[datetime]
-    """Is resource at the end of the stream?"""
-    eof: Optional[bool]
     """An example API request"""
     example: Optional[str]
     """Resource fields to save from the parsed API response"""
@@ -1144,25 +1067,21 @@ class Resource:
     name_field: Optional[str]
     """Space to document API inconsistencies"""
     note: Optional[str]
-    params: Optional[Dict[str, Union[List[str], bool, AttrClass, int, None, str]]]
+    params: Optional[Dict[str, Union[List[str], bool, int, None, str]]]
     """resourceId of the base resource object"""
     parent: Optional[str]
-    """Starting position item to fetch"""
+    """Current position item to fetch"""
     pos: Optional[float]
+    """Select a random (weighted) user agent string chosen from the useragents.me top 10 list."""
+    random_user_agent: Optional[bool]
     """What the resource is named in the API URL (defaults to `resourceId`)"""
-    resource_name: Optional[str]
+    resource_path: Optional[str]
     """The path to extract from the parsed API response (should return a list of items)"""
     result_key: Optional[str]
-    """Currently active resource"""
-    rid: Optional[str]
-    """Currently active sub resource"""
-    srid: Optional[str]
     """The first date to fetch data from"""
     start: Optional[datetime]
     """The path to extract from the parsed API response (should return a list of items)"""
     subkey: Optional[str]
-    """What the sub resource is named in the API URL"""
-    subresource: Optional[str]
     """The url of a resource endpoint"""
     url: Optional[str]
     """Use default"""
@@ -1172,6 +1091,7 @@ class Resource:
     def from_dict(obj: Any) -> "Resource":
         assert isinstance(obj, dict)
         resource_id = from_str(obj.get("resourceId"))
+        eof = from_union([from_bool, from_none], obj.get("_eof"))
         attrs = from_union(
             [
                 lambda x: from_dict(
@@ -1179,7 +1099,6 @@ class Resource:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            AttrClass.from_dict,
                             from_int,
                             from_none,
                             from_str,
@@ -1193,6 +1112,7 @@ class Resource:
             obj.get("attrs"),
         )
         auth_id = from_union([from_none, from_str], obj.get("authId"))
+        capture_html = from_union([from_bool, from_none], obj.get("captureHTML"))
         days = from_union([from_float, from_none], obj.get("days"))
         dictify = from_union([from_bool, from_none], obj.get("dictify"))
         documentation_url = from_union(
@@ -1200,7 +1120,6 @@ class Resource:
         )
         dump_data = from_union([from_bool, from_none], obj.get("dumpData"))
         end = from_union([from_datetime, from_none], obj.get("end"))
-        eof = from_union([from_bool, from_none], obj.get("eof"))
         example = from_union([from_none, from_str], obj.get("example"))
         fields = from_union(
             [lambda x: from_list(from_str, x), from_none], obj.get("fields")
@@ -1221,7 +1140,6 @@ class Resource:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            AttrClass.from_dict,
                             from_int,
                             from_none,
                             from_str,
@@ -1236,25 +1154,26 @@ class Resource:
         )
         parent = from_union([from_none, from_str], obj.get("parent"))
         pos = from_union([from_float, from_none], obj.get("pos"))
-        resource_name = from_union([from_none, from_str], obj.get("resourceName"))
+        random_user_agent = from_union(
+            [from_bool, from_none], obj.get("randomUserAgent")
+        )
+        resource_path = from_union([from_none, from_str], obj.get("resourcePath"))
         result_key = from_union([from_none, from_str], obj.get("resultKey"))
-        rid = from_union([from_none, from_str], obj.get("rid"))
-        srid = from_union([from_none, from_str], obj.get("srid"))
         start = from_union([from_datetime, from_none], obj.get("start"))
         subkey = from_union([from_none, from_str], obj.get("subkey"))
-        subresource = from_union([from_none, from_str], obj.get("subresource"))
         url = from_union([from_none, from_str], obj.get("url"))
         use_default = from_union([from_bool, from_none], obj.get("useDefault"))
         return Resource(
             resource_id,
+            eof,
             attrs,
             auth_id,
+            capture_html,
             days,
             dictify,
             documentation_url,
             dump_data,
             end,
-            eof,
             example,
             fields,
             filter,
@@ -1267,13 +1186,11 @@ class Resource:
             params,
             parent,
             pos,
-            resource_name,
+            random_user_agent,
+            resource_path,
             result_key,
-            rid,
-            srid,
             start,
             subkey,
-            subresource,
             url,
             use_default,
         )
@@ -1281,6 +1198,7 @@ class Resource:
     def to_dict(self) -> dict:
         result: dict = {}
         result["resourceId"] = from_str(self.resource_id)
+        result["_eof"] = from_union([from_bool, from_none], self.eof)
         result["attrs"] = from_union(
             [
                 lambda x: from_dict(
@@ -1288,7 +1206,6 @@ class Resource:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            lambda x: to_class(AttrClass, x),
                             from_int,
                             from_none,
                             from_str,
@@ -1302,6 +1219,7 @@ class Resource:
             self.attrs,
         )
         result["authId"] = from_union([from_none, from_str], self.auth_id)
+        result["captureHTML"] = from_union([from_bool, from_none], self.capture_html)
         result["days"] = from_union([to_float, from_none], self.days)
         result["dictify"] = from_union([from_bool, from_none], self.dictify)
         result["documentationURL"] = from_union(
@@ -1309,7 +1227,6 @@ class Resource:
         )
         result["dumpData"] = from_union([from_bool, from_none], self.dump_data)
         result["end"] = from_union([lambda x: x.isoformat(), from_none], self.end)
-        result["eof"] = from_union([from_bool, from_none], self.eof)
         result["example"] = from_union([from_none, from_str], self.example)
         result["fields"] = from_union(
             [lambda x: from_list(from_str, x), from_none], self.fields
@@ -1334,7 +1251,6 @@ class Resource:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            lambda x: to_class(AttrClass, x),
                             from_int,
                             from_none,
                             from_str,
@@ -1349,13 +1265,13 @@ class Resource:
         )
         result["parent"] = from_union([from_none, from_str], self.parent)
         result["pos"] = from_union([to_float, from_none], self.pos)
-        result["resourceName"] = from_union([from_none, from_str], self.resource_name)
+        result["randomUserAgent"] = from_union(
+            [from_bool, from_none], self.random_user_agent
+        )
+        result["resourcePath"] = from_union([from_none, from_str], self.resource_path)
         result["resultKey"] = from_union([from_none, from_str], self.result_key)
-        result["rid"] = from_union([from_none, from_str], self.rid)
-        result["srid"] = from_union([from_none, from_str], self.srid)
         result["start"] = from_union([lambda x: x.isoformat(), from_none], self.start)
         result["subkey"] = from_union([from_none, from_str], self.subkey)
-        result["subresource"] = from_union([from_none, from_str], self.subresource)
         result["url"] = from_union([from_none, from_str], self.url)
         result["useDefault"] = from_union([from_bool, from_none], self.use_default)
         return result
@@ -1372,9 +1288,13 @@ class StatusResourceClass:
 
     """Unique identifier for the API resource"""
     resource_id: str
-    attrs: Optional[Dict[str, Union[List[str], bool, AttrClass, int, None, str]]]
+    """Is resource at the end of the stream?"""
+    eof: Optional[bool]
+    attrs: Optional[Dict[str, Union[List[str], bool, int, None, str]]]
     """The authorization object used to authenticate"""
     auth_id: Optional[str]
+    """Get HTML instead of json response"""
+    capture_html: Optional[bool]
     """The the number of days to fetch data for"""
     days: Optional[float]
     """Convert response to a dictionary"""
@@ -1385,8 +1305,6 @@ class StatusResourceClass:
     dump_data: Optional[bool]
     """The last date to fetch data for (defaults to today)"""
     end: Optional[datetime]
-    """Is resource at the end of the stream?"""
-    eof: Optional[bool]
     """An example API request"""
     example: Optional[str]
     """Resource fields to save from the parsed API response"""
@@ -1409,25 +1327,21 @@ class StatusResourceClass:
     name_field: Optional[str]
     """Space to document API inconsistencies"""
     note: Optional[str]
-    params: Optional[Dict[str, Union[List[str], bool, AttrClass, int, None, str]]]
+    params: Optional[Dict[str, Union[List[str], bool, int, None, str]]]
     """resourceId of the base resource object"""
     parent: Optional[str]
-    """Starting position item to fetch"""
+    """Current position item to fetch"""
     pos: Optional[float]
+    """Select a random (weighted) user agent string chosen from the useragents.me top 10 list."""
+    random_user_agent: Optional[bool]
     """What the resource is named in the API URL (defaults to `resourceId`)"""
-    resource_name: Optional[str]
+    resource_path: Optional[str]
     """The path to extract from the parsed API response (should return a list of items)"""
     result_key: Optional[str]
-    """Currently active resource"""
-    rid: Optional[str]
-    """Currently active sub resource"""
-    srid: Optional[str]
     """The first date to fetch data from"""
     start: Optional[datetime]
     """The path to extract from the parsed API response (should return a list of items)"""
     subkey: Optional[str]
-    """What the sub resource is named in the API URL"""
-    subresource: Optional[str]
     """The url of a resource endpoint"""
     url: Optional[str]
     """Use default"""
@@ -1437,6 +1351,7 @@ class StatusResourceClass:
     def from_dict(obj: Any) -> "StatusResourceClass":
         assert isinstance(obj, dict)
         resource_id = from_str(obj.get("resourceId"))
+        eof = from_union([from_bool, from_none], obj.get("_eof"))
         attrs = from_union(
             [
                 lambda x: from_dict(
@@ -1444,7 +1359,6 @@ class StatusResourceClass:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            AttrClass.from_dict,
                             from_int,
                             from_none,
                             from_str,
@@ -1458,6 +1372,7 @@ class StatusResourceClass:
             obj.get("attrs"),
         )
         auth_id = from_union([from_none, from_str], obj.get("authId"))
+        capture_html = from_union([from_bool, from_none], obj.get("captureHTML"))
         days = from_union([from_float, from_none], obj.get("days"))
         dictify = from_union([from_bool, from_none], obj.get("dictify"))
         documentation_url = from_union(
@@ -1465,7 +1380,6 @@ class StatusResourceClass:
         )
         dump_data = from_union([from_bool, from_none], obj.get("dumpData"))
         end = from_union([from_datetime, from_none], obj.get("end"))
-        eof = from_union([from_bool, from_none], obj.get("eof"))
         example = from_union([from_none, from_str], obj.get("example"))
         fields = from_union(
             [lambda x: from_list(from_str, x), from_none], obj.get("fields")
@@ -1486,7 +1400,6 @@ class StatusResourceClass:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            AttrClass.from_dict,
                             from_int,
                             from_none,
                             from_str,
@@ -1501,25 +1414,26 @@ class StatusResourceClass:
         )
         parent = from_union([from_none, from_str], obj.get("parent"))
         pos = from_union([from_float, from_none], obj.get("pos"))
-        resource_name = from_union([from_none, from_str], obj.get("resourceName"))
+        random_user_agent = from_union(
+            [from_bool, from_none], obj.get("randomUserAgent")
+        )
+        resource_path = from_union([from_none, from_str], obj.get("resourcePath"))
         result_key = from_union([from_none, from_str], obj.get("resultKey"))
-        rid = from_union([from_none, from_str], obj.get("rid"))
-        srid = from_union([from_none, from_str], obj.get("srid"))
         start = from_union([from_datetime, from_none], obj.get("start"))
         subkey = from_union([from_none, from_str], obj.get("subkey"))
-        subresource = from_union([from_none, from_str], obj.get("subresource"))
         url = from_union([from_none, from_str], obj.get("url"))
         use_default = from_union([from_bool, from_none], obj.get("useDefault"))
         return StatusResourceClass(
             resource_id,
+            eof,
             attrs,
             auth_id,
+            capture_html,
             days,
             dictify,
             documentation_url,
             dump_data,
             end,
-            eof,
             example,
             fields,
             filter,
@@ -1532,13 +1446,11 @@ class StatusResourceClass:
             params,
             parent,
             pos,
-            resource_name,
+            random_user_agent,
+            resource_path,
             result_key,
-            rid,
-            srid,
             start,
             subkey,
-            subresource,
             url,
             use_default,
         )
@@ -1546,6 +1458,7 @@ class StatusResourceClass:
     def to_dict(self) -> dict:
         result: dict = {}
         result["resourceId"] = from_str(self.resource_id)
+        result["_eof"] = from_union([from_bool, from_none], self.eof)
         result["attrs"] = from_union(
             [
                 lambda x: from_dict(
@@ -1553,7 +1466,6 @@ class StatusResourceClass:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            lambda x: to_class(AttrClass, x),
                             from_int,
                             from_none,
                             from_str,
@@ -1567,6 +1479,7 @@ class StatusResourceClass:
             self.attrs,
         )
         result["authId"] = from_union([from_none, from_str], self.auth_id)
+        result["captureHTML"] = from_union([from_bool, from_none], self.capture_html)
         result["days"] = from_union([to_float, from_none], self.days)
         result["dictify"] = from_union([from_bool, from_none], self.dictify)
         result["documentationURL"] = from_union(
@@ -1574,7 +1487,6 @@ class StatusResourceClass:
         )
         result["dumpData"] = from_union([from_bool, from_none], self.dump_data)
         result["end"] = from_union([lambda x: x.isoformat(), from_none], self.end)
-        result["eof"] = from_union([from_bool, from_none], self.eof)
         result["example"] = from_union([from_none, from_str], self.example)
         result["fields"] = from_union(
             [lambda x: from_list(from_str, x), from_none], self.fields
@@ -1599,7 +1511,6 @@ class StatusResourceClass:
                         [
                             lambda x: from_list(from_str, x),
                             from_bool,
-                            lambda x: to_class(AttrClass, x),
                             from_int,
                             from_none,
                             from_str,
@@ -1614,13 +1525,13 @@ class StatusResourceClass:
         )
         result["parent"] = from_union([from_none, from_str], self.parent)
         result["pos"] = from_union([to_float, from_none], self.pos)
-        result["resourceName"] = from_union([from_none, from_str], self.resource_name)
+        result["randomUserAgent"] = from_union(
+            [from_bool, from_none], self.random_user_agent
+        )
+        result["resourcePath"] = from_union([from_none, from_str], self.resource_path)
         result["resultKey"] = from_union([from_none, from_str], self.result_key)
-        result["rid"] = from_union([from_none, from_str], self.rid)
-        result["srid"] = from_union([from_none, from_str], self.srid)
         result["start"] = from_union([lambda x: x.isoformat(), from_none], self.start)
         result["subkey"] = from_union([from_none, from_str], self.subkey)
-        result["subresource"] = from_union([from_none, from_str], self.subresource)
         result["url"] = from_union([from_none, from_str], self.url)
         result["useDefault"] = from_union([from_bool, from_none], self.use_default)
         return result
@@ -1636,6 +1547,8 @@ class Provider:
     prefix: str
     """Resources exposed by 3rd party API"""
     resources: List[Resource]
+    """The $schema the provider should validate against"""
+    schema: Optional[str]
     """The resource represented by the statusResourceId"""
     status_resource: Optional[StatusResourceClass]
     """The resourceId of a resource to redirect to after authenticating the user"""
@@ -1647,19 +1560,23 @@ class Provider:
         auths = from_list(Authentication.from_dict, obj.get("auths"))
         prefix = from_str(obj.get("prefix"))
         resources = from_list(Resource.from_dict, obj.get("resources"))
+        schema = from_union([from_none, from_str], obj.get("$schema"))
         status_resource = from_union(
             [StatusResourceClass.from_dict, from_none], obj.get("statusResource")
         )
         status_resource_id = from_union(
             [from_none, from_str], obj.get("statusResourceId")
         )
-        return Provider(auths, prefix, resources, status_resource, status_resource_id)
+        return Provider(
+            auths, prefix, resources, schema, status_resource, status_resource_id
+        )
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["auths"] = from_list(lambda x: to_class(Authentication, x), self.auths)
         result["prefix"] = from_str(self.prefix)
         result["resources"] = from_list(lambda x: to_class(Resource, x), self.resources)
+        result["$schema"] = from_union([from_none, from_str], self.schema)
         result["statusResource"] = from_union(
             [lambda x: to_class(StatusResourceClass, x), from_none],
             self.status_resource,
