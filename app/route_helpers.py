@@ -6,6 +6,7 @@
     Provides route helper functions
 """
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import asdict
 from os import getenv, path as p
 
@@ -14,7 +15,27 @@ import pygogo as gogo
 from dotenv import load_dotenv
 
 from app.helpers import flask_formatter as formatter, toposort
-from app.providers import Authentication, Provider
+
+try:
+    from app.providers import (
+        AttrClass,
+        Authentication,
+        AuthenticationHeaders,
+        HeadlessElement,
+        MethodMap,
+        ParamMap,
+        Provider,
+        Resource,
+        ResourceHeaders,
+    )
+except ImportError:
+    Authentication = (
+        Provider
+    ) = (
+        Resource
+    ) = (
+        AuthenticationHeaders
+    ) = MethodMap = ParamMap = HeadlessElement = AttrClass = ResourceHeaders = None
 
 logger = gogo.Gogo(
     __name__, low_formatter=formatter, high_formatter=formatter, monolog=True
@@ -27,16 +48,18 @@ PARENT_DIR = p.abspath(p.dirname(p.dirname(__file__)))
 load_dotenv(p.join(PARENT_DIR, ".env"), override=True)
 
 
-def getattrs(obj, *attrs):
+def get_attrs(obj, *attrs):
     attr = getattr(obj, attrs[0])
 
     if len(attrs) > 1:
-        attr = getattrs(attr, *attrs[1:])
+        attr = get_attrs(attr, *attrs[1:])
 
     return attr
 
 
-def get_authentication(*args: Authentication, auth_id: str = None) -> Authentication:
+def get_authentication(
+    *args: Sequence[Authentication], auth_id: str = None
+) -> Authentication:
     authentication = None
 
     if auth_id:
@@ -55,9 +78,30 @@ def get_authentication(*args: Authentication, auth_id: str = None) -> Authentica
         elif args:
             authentication = args[0]
         else:
-            raise AssertionError("No auths found in provider!")
+            raise AssertionError("No auths found in provider !")
 
     return authentication
+
+
+def get_resource(*args: Sequence[Resource], resource_id: str = None) -> Resource:
+    resource = None
+
+    for resource in args:
+        if resource.resource_id == resource_id:
+            break
+
+    return resource
+
+
+def get_status_resource(provider):
+    resource = None
+
+    if provider and provider.resources:
+        resource = get_resource(
+            *provider.resources, resource_id=provider.status_resource_id
+        )
+
+    return resource
 
 
 def is_listlike(item):
@@ -97,10 +141,42 @@ def _format(value, **kwargs):
         try:
             formatted = {k: _format(v, **kwargs) for k, v in value.items()}
         except AttributeError:
-            if is_listlike(formatted):
+            if is_listlike(value):
                 formatted = [_format(v) for v in value]
 
     return formatted
+
+
+def gen_attrs(value):
+    for k, _v in value.items():
+        v = AttrClass.from_dict(_v) if hasattr(_v, "items") else _v
+        yield k, v
+
+
+def set_auth_attr(authentication: Authentication, key: str, value):
+    converters = {
+        "headers": AuthenticationHeaders.from_dict,
+        "method_map": MethodMap.from_dict,
+        "param_map": ParamMap.from_dict,
+    }
+
+    if from_dict := converters.get(key):
+        value = from_dict(value)
+    elif key == "headless_elements":
+        value = [HeadlessElement.from_dict(element) for element in value]
+    elif key in {"attrs", "params"}:
+        value = dict(gen_attrs(value))
+
+    setattr(authentication, key, value)
+
+
+def set_resource_attr(resource: Resource, key: str, value):
+    if key == "headers":
+        value = ResourceHeaders.from_dict(value)
+    elif key in {"attrs", "params"}:
+        value = dict(gen_attrs(value))
+
+    setattr(resource, key, value)
 
 
 def augment_auth(provider: Provider, authentication: Authentication):
@@ -114,7 +190,7 @@ def augment_auth(provider: Provider, authentication: Authentication):
 
         for k, v in parentAsdict.items():
             if v and not getattr(authentication, k):
-                setattr(authentication, k, v)
+                set_auth_attr(authentication, k, v)
 
         parent_attrs = parent.attrs or {}
         [authentication.attrs.setdefault(k, v) for k, v in parent_attrs.items()]
@@ -124,18 +200,44 @@ def augment_auth(provider: Provider, authentication: Authentication):
     kwargs.update(authentication.attrs)
 
     for k, v in authAsdict.items():
-        if v:
-            replaced = replace_envs(v)
-            setattr(authentication, k, replaced)
+        if v and v != (replaced := replace_envs(v)):
+            set_auth_attr(authentication, k, replaced)
 
     authAsdict = asdict(authentication)
     kwargs.update(authAsdict)
     kwargs.update(authentication.attrs)
 
     for k, v in authAsdict.items():
-        if v:
-            formatted = _format(v, **kwargs)
-            setattr(authentication, k, formatted)
+        if v and v != (formatted := _format(v, **kwargs)):
+            set_auth_attr(authentication, k, formatted)
+
+
+def augment_resource(provider: Provider, resource: Resource):
+    _resource = f"{provider.prefix}/{resource.resource_id}"
+
+    if resource.parent:
+        parent = get_resource(*provider.resources, resource_id=resource.parent)
+
+        if parent:
+            resource.auth_id = resource.auth_id or parent.auth_id
+            resource.resource_name = resource.resource_name or parent.resource_name
+            # resource.parent = parent
+        else:
+            raise AssertionError(
+                f"No parent resource with resourceId {resource.parent} found."
+            )
+
+    resource.resource_name = resource.resource_name or resource.resource_id
+    authentication = get_authentication(*provider.auths, auth_id=resource.auth_id)
+    kwargs = authentication.attrs or {}
+    kwargs.update(resource.attrs or {})
+
+    for k, v in asdict(resource).items():
+        if v and v != (formatted := _format(v, **kwargs)):
+            set_resource_attr(resource, k, formatted)
+
+    assert resource.auth_id, f"{_resource} is missing auth_id!"
+    assert resource.resource_name, f"{_resource} is missing resource_name!"
 
 
 def validate_providers(*args: Provider):
@@ -147,3 +249,22 @@ def validate_providers(*args: Provider):
             raise AssertionError(
                 f"The provider prefix `{prefix}` is specified {count} times!"
             )
+
+    for provider in args:
+        id_counts = Counter(resource.resource_id for resource in provider.resources)
+        most_common = id_counts.most_common(1)
+
+        if most_common[0][1] > 1:
+            for resource_id, count in most_common:
+                _path = f"{provider.prefix}/resources[?]/{resource_id}"
+                raise AssertionError(
+                    f"The resourceId {_path} is specified {count} times!"
+                )
+
+        id_counts = Counter(auth.auth_id for auth in provider.auths)
+        most_common = id_counts.most_common(1)
+
+        if most_common[0][1] > 1:
+            for auth_id, count in most_common:
+                _path = f"{provider.prefix}/auths[?]/{auth_id}"
+                raise AssertionError(f"The authId {_path} is specified {count} times!")

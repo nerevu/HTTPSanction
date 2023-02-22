@@ -24,27 +24,27 @@
       "apiBaseURL": "https://api.mailgun.net/v3"
     }
   ],
-  "statusResourceId": "Domains",
+  "statusResourceId": "domains",
   "resources": [
     {
-      "resourceId": "Domains",
+      "resourceId": "domains",
       "authId": "account",
       "subkey": "domain"
     },
     {
-      "resourceId": "EmailLists",
+      "resourceId": "emailLists",
       "authId": "account",
       "idField": "address",
       "resourceName": "lists",
-      "rid": "{list_prefix}@{domain}",
+      "rid": "{listPrefix}@{domain}",
       "subkey": "list",
       "attrs": {
-        "list_prefix": "$MAILGUN_LIST_PREFIX"
+        "listPrefix": "$MAILGUN_LIST_PREFIX"
       }
     },
     {
-      "resourceId": "EmailListMembers",
-      "parent": "EmailLists",
+      "resourceId": "emailListMembers",
+      "parent": "emailLists",
       "subresource": "members",
       "attrs": {
         "subkey": {

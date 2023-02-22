@@ -187,13 +187,7 @@
     },
     "methods": {
       "description": "HTTP methods this resource allows",
-      "type": "array",
-      "default": [],
-      "items": {
-        "type": "string",
-        "default": "GET",
-        "pattern": "GET|POST|PATCH|PUT|DELETE"
-      }
+      "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/methods.schema.json"
     },
     "url": {
       "description": "The url of a resource endpoint",

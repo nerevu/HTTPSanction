@@ -112,6 +112,14 @@
         "$SECRET"
       ]
     },
+    "personalAccessToken": {
+      "description": "The API key or personal access token",
+      "type": "string",
+      "default": "",
+      "examples": [
+        "$ACCESS_TOKEN"
+      ]
+    },
     "extractions": {
       "description": "Key/Value pairs where key -> Attribute to store the extracted path in, and value -> Path to extract from the json authentication result",
       "type": "object",
@@ -217,42 +225,47 @@
       "default": {},
       "additionalProperties": false,
       "properties": {
-        "GET": {
+        "get": {
           "description": "Map GET requests",
           "type": "string",
           "default": "GET",
+          "pattern": "get|post|patch|put|delete|GET|POST|PATCH|PUT|DELETE",
           "examples": [
             "POST"
           ]
         },
-        "POST": {
+        "post": {
           "description": "Map POST requests",
           "type": "string",
           "default": "POST",
+          "pattern": "get|post|patch|put|delete|GET|POST|PATCH|PUT|DELETE",
           "examples": [
             "GET"
           ]
         },
-        "PUT": {
+        "put": {
           "description": "Map PUT requests",
           "type": "string",
           "default": "PUT",
+          "pattern": "get|post|patch|put|delete|GET|POST|PATCH|PUT|DELETE",
           "examples": [
             "POST"
           ]
         },
-        "PATCH": {
+        "patch": {
           "description": "Map PATCH requests",
           "type": "string",
           "default": "PATCH",
+          "pattern": "get|post|patch|put|delete|GET|POST|PATCH|PUT|DELETE",
           "examples": [
             "POST"
           ]
         },
-        "DELETE": {
+        "delete": {
           "description": "Map DELETE requests",
           "type": "string",
           "default": "DELETE",
+          "pattern": "get|post|patch|put|delete|GET|POST|PATCH|PUT|DELETE",
           "examples": [
             "POST"
           ]

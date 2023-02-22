@@ -13,6 +13,7 @@
       }
     }
   ],
+  "statusResourceId": "profile",
   "resources": [
     {
       "resourceId": "stages",
@@ -20,9 +21,8 @@
       "resourceName": "project_segments"
     },
     {
-      "resourceId": "status",
-      "authId": "custom",
-      "resourceName": "profile"
+      "resourceId": "profile",
+      "authId": "custom"
     }
   ]
 }

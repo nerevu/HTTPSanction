@@ -59,7 +59,6 @@ SET_TIMEOUT = Config.SET_TIMEOUT
 OAUTH_EXPIRY_SECONDS = 3600
 EXPIRATION_BUFFER = 30
 RENEW_TIME = 60
-HEADERS = {"Accept": "application/json"}
 
 
 @dataclass(repr=False)
@@ -69,6 +68,8 @@ class BaseClient(Authentication):
     created_at: Union[dt, int, str] = field(default=dt.now(timezone.utc), init=False)
     error: str = field(default="", init=False)
     oauth_version: int = field(default=None, init=False)
+    token: str = field(default=None, init=False)
+    auth: tuple[str, str] = field(default=None, init=False)
 
     def __post_init__(self):
         self.auth_type = "custom"
@@ -210,8 +211,6 @@ FLOW_TYPES = {
 
 @dataclass(repr=False)
 class OAuth2Client(OAuth2BaseClient):
-    revoke_url: str = ""
-    account_id: str = ""
     extra: dict = field(init=False, default_factory=dict)
     token_type: str = field(default="Bearer", init=False)
     oauth_session: OAuth2Session = field(default=None, init=False)
@@ -611,12 +610,10 @@ class OAuth1Client(AuthClient):
 
 @dataclass(repr=False)
 class BasicAuthClient(AuthClient):
-    auth: tuple[str, str] = field(init=False)
-
     def __post_init__(self):
         super().__post_init__()
         self.auth_type = "basic"
-        self.auth = (self.username, self.password)
+        self.auth = HTTPBasicAuth(self.username, self.password)
 
 
 @dataclass(repr=False)
@@ -630,14 +627,12 @@ class BearerAuth(AuthBase):
 
 @dataclass(repr=False)
 class BearerAuthClient(AuthClient):
-    token: str = ""
-    auth: BearerAuth = field(init=False)
     oauth_version: int = field(default=1, init=False)
 
     def __post_init__(self):
         super().__post_init__()
         self.auth_type = "bearer"
-        self.auth = BearerAuth(self.token)
+        self.auth = BearerAuth(self.personal_access_token)
 
 
 AVAILABLE_AUTHS = {
@@ -661,18 +656,13 @@ AuthClientTypes = Union[
 
 
 # https://github.com/ofw/curlify
-def request_to_curl_args(request):
-    try:
-        _request = request.request
-    except AttributeError:
-        _request = request
-
-    yield from ("-X", _request.method)
+def request_to_curl_args(request: requests.PreparedRequest):
+    yield from ("-X", request.method)
 
     for k, v in sorted(request.headers.items()):
         yield from ("-H", f"{k}: {v}")
 
-    if body := _request.body:
+    if body := request.body:
         yield from ("-d", body.decode("utf-8") if isinstance(body, bytes) else body)
 
 
@@ -687,7 +677,7 @@ def args_to_curl_args(method, params=None, data=None, json=None, headers=None):
         yield from ("-d", body.decode("utf-8") if isinstance(body, bytes) else body)
 
 
-def request_to_curl(request):
+def request_to_curl(request: requests.PreparedRequest):
     args = " ".join(map(quote, request_to_curl_args(request)))
     return f"curl {args} {request.url}"
 
@@ -800,9 +790,9 @@ def get_json_error(url, result):
     return json
 
 
-def debug_header(result, verbose=False):
-    logger.debug({k: v[:32] for k, v in result.request.headers.items()})
-    body = result.request.body or ""
+def debug_request(request: requests.PreparedRequest, verbose=False):
+    logger.debug({k: v[:32] for k, v in request.headers.items()})
+    body = request.body or ""
 
     try:
         parsed = parse_qs(body)
@@ -853,14 +843,7 @@ def get_result(url, client, method="get", **kwargs):
     params = kwargs.get("params") or {}
     data = kwargs.get("data") or {}
     json_data = kwargs.get("json") or {}
-    def_headers = kwargs.get("headers") or {}
-    all_headers = client.headers.get("all") or {}
-    method_headers = client.headers.get(method) or {}
-    _client_headers = {**all_headers, **method_headers}
-    client_headers = {
-        k: v.format(**client.__dict__) for k, v in _client_headers.items()
-    }
-    headers = {**HEADERS, **client_headers, **def_headers}
+    headers = kwargs.get("headers") or {}
 
     try:
         requestor = client.oauth_session
@@ -870,10 +853,7 @@ def get_result(url, client, method="get", **kwargs):
     verb = getattr(requestor, method)
 
     if client.auth:
-        try:
-            verb = partial(verb, auth=client.auth)
-        except AttributeError:
-            pass
+        verb = partial(verb, auth=client.auth)
 
     vkwargs = {}
 
@@ -886,21 +866,7 @@ def get_result(url, client, method="get", **kwargs):
     if json_data:
         vkwargs["json"] = json_data
 
-    result = verb(url, headers=headers, **vkwargs)
-
-    if result is None:
-        req = Request(
-            method=method.upper(),
-            url=url,
-            headers=headers,
-            data=data,
-            json=json_data,
-            params=params,
-        )
-
-        result = requestor.prepare_request(req)
-
-    return result
+    return verb(url, headers=headers, **vkwargs)
 
 
 def get_errors(result, _json):
@@ -927,17 +893,16 @@ def get_errors(result, _json):
     return json
 
 
-def get_json(url, client, **kwargs):
+def get_json(url, client, params=None, **kwargs):
     result = None
-    params = kwargs.get("params")
-    method = kwargs["method"]
+    params = params or {}
     success_code = kwargs["success_code"]
     retry_cnt = kwargs["retry_cnt"]
     max_retries = kwargs["max_retries"]
     init_backoff = kwargs["init_backoff"]
 
     try:
-        result = get_result(url, client, method=method, params=params, **kwargs)
+        result = get_result(url, client, params=params, **kwargs)
     except TokenExpiredError:
         ok = unscoped = False
         json = {"message": "Token Expired", "status_code": 401}
@@ -969,10 +934,10 @@ def get_json(url, client, **kwargs):
         else:
             json = get_errors(result, json)
 
-    status_code, ok = is_ok(success_code, **json)
+    _, ok = is_ok(success_code, **json)
 
     if result and not ok and kwargs.get("debug"):
-        debug_header(result)
+        debug_request(result.request)
 
     if result and not (ok or kwargs.get("message")):
         json["message"] = f"{result.reason}."
@@ -990,12 +955,11 @@ def get_json_response(
     method="get",
     **kwargs,
 ):
-    params = kwargs.get("params")
     unscoped = False
     result = None
 
     if not client:
-        json = {"message": "No client.", "status_code": 407}
+        json = {"message": "No client given.", "status_code": 400}
     elif client.expired:
         json = {"message": "Token Expired.", "status_code": 401}
     elif not client.verified:
@@ -1006,14 +970,15 @@ def get_json_response(
         json, unscoped, result = get_json(
             url,
             client,
-            success_code=success_code,
-            max_retries=max_retries,
             retry_cnt=retry_cnt,
             init_backoff=init_backoff,
+            max_retries=max_retries,
+            success_code=success_code,
+            method=method,
             **kwargs,
         )
     else:
-        json = client.json
+        json = {"message": "No url given.", "status_code": 400}
 
     status_code, ok = is_ok(success_code, **json)
     json["ok"] = ok
@@ -1026,7 +991,7 @@ def get_json_response(
         except AttributeError:
             pass
         else:
-            json = get_json_response(url, client, params=params, retry_cnt=1, **kwargs)
+            json = get_json_response(url, client, retry_cnt=1, **kwargs)
     elif status_code == 429:
         # https://developer.xero.com/documentation/guides/oauth2/limits/
         wait = result.headers.get("Retry-After") if result is not None else None
@@ -1037,22 +1002,22 @@ def get_json_response(
             sleep(int(wait))
             logger.debug("Done waiting!")
 
-            return get_json_response(
-                url, client, params=params, retry_cnt=retry_cnt + 1, **kwargs
-            )
+            return get_json_response(url, client, retry_cnt=retry_cnt + 1, **kwargs)
         elif wait:
             message = f" Max tries of {max_retries} reached."
         else:
             message = " No `Retry-After` given."
 
         json["message"] += message
-    elif ok and has_app_context():
+
+    if has_app_context():
         json["links"] = get_links(app.url_map.iter_rules())
-    else:
+
+    if not ok:
         debug_json(client, url, method=method, **json)
 
         if result is not None:
-            logger.info(request_to_curl(result))
+            logger.info(request_to_curl(result.request))
 
     return json
 

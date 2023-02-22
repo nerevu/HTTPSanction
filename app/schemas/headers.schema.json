@@ -6,37 +6,37 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "ALL": {
+    "all": {
       "description": "Include in all requests",
       "type": "object",
       "default": {},
       "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/attribute.schema.json"
     },
-    "GET": {
+    "get": {
       "description": "Include only in GET requests",
       "type": "object",
       "default": {},
       "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/attribute.schema.json"
     },
-    "POST": {
+    "post": {
       "description": "Include only in POST requests",
       "type": "object",
       "default": {},
       "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/attribute.schema.json"
     },
-    "PUT": {
+    "put": {
       "description": "Include only in PUT requests",
       "type": "object",
       "default": {},
       "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/attribute.schema.json"
     },
-    "PATCH": {
+    "patch": {
       "description": "Include only in PATCH requests",
       "type": "object",
       "default": {},
       "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/attribute.schema.json"
     },
-    "DELETE": {
+    "delete": {
       "description": "Include only in DELETE requests",
       "type": "object",
       "default": {},

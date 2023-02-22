@@ -8,7 +8,7 @@
       "ridLast": true,
       "apiExt": "json",
       "methodMap": {
-        "PATCH": "PUT"
+        "patch": "PUT"
       }
     },
     {
@@ -23,16 +23,17 @@
       "authType": "custom",
       "parent": "base",
       "headers": {
-        "ALL": {
+        "all": {
           "Content-Type": "application/json",
           "X-Auth-Token": "$KEYCDN_API_KEY"
         }
       }
     }
   ],
+  "statusResourceId": "zones",
   "resources": [
     {
-      "resourceId": "Zones",
+      "resourceId": "zones",
       "authId": "basic",
       "methods": [
         "GET",
@@ -56,7 +57,7 @@
     },
     {
       "resourceId": "ZoneURLCache",
-      "example": "DELETE https://api.keycdn.com/zones/purgeurl/209797 --data '{\"urls\":[\"examplepull-hexid.kxcdn.com/css/style.css\"]}'",
+      "example": "DELETE https://api.keycdn.com/zones/purgeurl/209797 --data '{{\"urls\":[\"examplepull-hexid.kxcdn.com/css/style.css\"]}}'",
       "authId": "basic",
       "resourceName": "zones",
       "subresource": "purgeurl",
@@ -64,6 +65,5 @@
         "DELETE"
       ]
     }
-  ],
-  "statusResourceId": "zones"
+  ]
 }

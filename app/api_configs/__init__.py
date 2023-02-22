@@ -54,7 +54,7 @@ class AuthRouteParams:
     module: str
     """Unique identifier for the route"""
     name: str
-    """HTTP methods this route allows"""
+    """HTTP methods this resource allows"""
     methods: Optional[List[str]]
     """Query parameters this route accepts (in the form of `<type>:<name>`"""
     params: Optional[List[str]]

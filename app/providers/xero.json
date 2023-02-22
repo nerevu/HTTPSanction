@@ -9,14 +9,6 @@
       "tokenURL": "https://identity.xero.com/connect/token",
       "refreshURL": "https://identity.xero.com/connect/token",
       "redirectURI": "/xero-callback",
-      "extractions": {
-        "tenant_id": "result[0].tenantId"
-      },
-      "headers": {
-        "ALL": {
-          "Xero-tenant-id": "%tenant_id%"
-        }
-      },
       "clientId": "$XERO_CLIENT_ID",
       "clientSecret": "$XERO_SECRET",
       "username": "$XERO_USERNAME",
@@ -82,17 +74,30 @@
       "authId": "simple",
       "parent": "base",
       "isDefault": true,
-      "apiBaseURL": "https://api.xero.com"
+      "apiBaseURL": "https://api.xero.com",
+      "extractions": {
+        "tenant_id": "result[0].tenantId"
+      }
     },
     {
       "authId": "api",
       "parent": "base",
-      "apiBaseURL": "https://api.xero.com/api.xro/2.0"
+      "apiBaseURL": "https://api.xero.com/api.xro/2.0",
+      "headers": {
+        "all": {
+          "Xero-tenant-id": "{tenant_id}"
+        }
+      }
     },
     {
       "authId": "project",
       "parent": "base",
-      "apiBaseURL": "https://api.xero.com/projects.xro/2.0"
+      "apiBaseURL": "https://api.xero.com/projects.xro/2.0",
+      "headers": {
+        "all": {
+          "Xero-tenant-id": "{tenant_id}"
+        }
+      }
     }
   ],
   "statusResourceId": "connections",

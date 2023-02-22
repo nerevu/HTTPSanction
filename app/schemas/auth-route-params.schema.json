@@ -21,14 +21,8 @@
       ]
     },
     "methods": {
-      "description": "HTTP methods this route allows",
-      "type": "array",
-      "default": [],
-      "items": {
-        "type": "string",
-        "default": "GET",
-        "pattern": "GET|POST|PATCH|PUT|DELETE"
-      }
+      "description": "HTTP methods this resource allows",
+      "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/methods.schema.json"
     },
     "params": {
       "description": "Query parameters this route accepts (in the form of `<type>:<name>`",

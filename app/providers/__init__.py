@@ -172,7 +172,7 @@ class AuthenticationHeaders:
                 ),
                 from_none,
             ],
-            obj.get("ALL"),
+            obj.get("all"),
         )
         delete = from_union(
             [
@@ -192,7 +192,7 @@ class AuthenticationHeaders:
                 ),
                 from_none,
             ],
-            obj.get("DELETE"),
+            obj.get("delete"),
         )
         get = from_union(
             [
@@ -212,7 +212,7 @@ class AuthenticationHeaders:
                 ),
                 from_none,
             ],
-            obj.get("GET"),
+            obj.get("get"),
         )
         patch = from_union(
             [
@@ -232,7 +232,7 @@ class AuthenticationHeaders:
                 ),
                 from_none,
             ],
-            obj.get("PATCH"),
+            obj.get("patch"),
         )
         post = from_union(
             [
@@ -252,7 +252,7 @@ class AuthenticationHeaders:
                 ),
                 from_none,
             ],
-            obj.get("POST"),
+            obj.get("post"),
         )
         put = from_union(
             [
@@ -272,13 +272,13 @@ class AuthenticationHeaders:
                 ),
                 from_none,
             ],
-            obj.get("PUT"),
+            obj.get("put"),
         )
         return AuthenticationHeaders(all, delete, get, patch, post, put)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["ALL"] = from_union(
+        result["all"] = from_union(
             [
                 lambda x: from_dict(
                     lambda x: from_union(
@@ -298,7 +298,7 @@ class AuthenticationHeaders:
             ],
             self.all,
         )
-        result["DELETE"] = from_union(
+        result["delete"] = from_union(
             [
                 lambda x: from_dict(
                     lambda x: from_union(
@@ -318,7 +318,7 @@ class AuthenticationHeaders:
             ],
             self.delete,
         )
-        result["GET"] = from_union(
+        result["get"] = from_union(
             [
                 lambda x: from_dict(
                     lambda x: from_union(
@@ -338,7 +338,7 @@ class AuthenticationHeaders:
             ],
             self.get,
         )
-        result["PATCH"] = from_union(
+        result["patch"] = from_union(
             [
                 lambda x: from_dict(
                     lambda x: from_union(
@@ -358,7 +358,7 @@ class AuthenticationHeaders:
             ],
             self.patch,
         )
-        result["POST"] = from_union(
+        result["post"] = from_union(
             [
                 lambda x: from_dict(
                     lambda x: from_union(
@@ -378,7 +378,7 @@ class AuthenticationHeaders:
             ],
             self.post,
         )
-        result["PUT"] = from_union(
+        result["put"] = from_union(
             [
                 lambda x: from_dict(
                     lambda x: from_union(
@@ -454,20 +454,20 @@ class MethodMap:
     @staticmethod
     def from_dict(obj: Any) -> "MethodMap":
         assert isinstance(obj, dict)
-        delete = from_union([from_none, from_str], obj.get("DELETE"))
-        get = from_union([from_none, from_str], obj.get("GET"))
-        patch = from_union([from_none, from_str], obj.get("PATCH"))
-        post = from_union([from_none, from_str], obj.get("POST"))
-        put = from_union([from_none, from_str], obj.get("PUT"))
+        delete = from_union([from_none, from_str], obj.get("delete"))
+        get = from_union([from_none, from_str], obj.get("get"))
+        patch = from_union([from_none, from_str], obj.get("patch"))
+        post = from_union([from_none, from_str], obj.get("post"))
+        put = from_union([from_none, from_str], obj.get("put"))
         return MethodMap(delete, get, patch, post, put)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["DELETE"] = from_union([from_none, from_str], self.delete)
-        result["GET"] = from_union([from_none, from_str], self.get)
-        result["PATCH"] = from_union([from_none, from_str], self.patch)
-        result["POST"] = from_union([from_none, from_str], self.post)
-        result["PUT"] = from_union([from_none, from_str], self.put)
+        result["delete"] = from_union([from_none, from_str], self.delete)
+        result["get"] = from_union([from_none, from_str], self.get)
+        result["patch"] = from_union([from_none, from_str], self.patch)
+        result["post"] = from_union([from_none, from_str], self.post)
+        result["put"] = from_union([from_none, from_str], self.put)
         return result
 
 
@@ -554,6 +554,8 @@ class Authentication:
     parent: Optional[str]
     """The application password"""
     password: Optional[str]
+    """The API key or personal access token"""
+    personal_access_token: Optional[str]
     """API OAuth flow callback entry point (defaults to `$PROVIDER_PREFIX-callback`"""
     redirect_uri: Optional[str]
     """API OAuth token refresh URL (defaults to the `tokenURL`)"""
@@ -651,6 +653,9 @@ class Authentication:
         )
         parent = from_union([from_none, from_str], obj.get("parent"))
         password = from_union([from_none, from_str], obj.get("password"))
+        personal_access_token = from_union(
+            [from_none, from_str], obj.get("personalAccessToken")
+        )
         redirect_uri = from_union([from_none, from_str], obj.get("redirectURI"))
         refresh_url = from_union([from_none, from_str], obj.get("refreshURL"))
         requires_basic_auth = from_union(
@@ -690,6 +695,7 @@ class Authentication:
             params,
             parent,
             password,
+            personal_access_token,
             redirect_uri,
             refresh_url,
             requires_basic_auth,
@@ -781,6 +787,9 @@ class Authentication:
         )
         result["parent"] = from_union([from_none, from_str], self.parent)
         result["password"] = from_union([from_none, from_str], self.password)
+        result["personalAccessToken"] = from_union(
+            [from_none, from_str], self.personal_access_token
+        )
         result["redirectURI"] = from_union([from_none, from_str], self.redirect_uri)
         result["refreshURL"] = from_union([from_none, from_str], self.refresh_url)
         result["requiresBasicAuth"] = from_union(
@@ -863,7 +872,7 @@ class ResourceHeaders:
                 ),
                 from_none,
             ],
-            obj.get("ALL"),
+            obj.get("all"),
         )
         delete = from_union(
             [
@@ -883,7 +892,7 @@ class ResourceHeaders:
                 ),
                 from_none,
             ],
-            obj.get("DELETE"),
+            obj.get("delete"),
         )
         get = from_union(
             [
@@ -903,7 +912,7 @@ class ResourceHeaders:
                 ),
                 from_none,
             ],
-            obj.get("GET"),
+            obj.get("get"),
         )
         patch = from_union(
             [
@@ -923,7 +932,7 @@ class ResourceHeaders:
                 ),
                 from_none,
             ],
-            obj.get("PATCH"),
+            obj.get("patch"),
         )
         post = from_union(
             [
@@ -943,7 +952,7 @@ class ResourceHeaders:
                 ),
                 from_none,
             ],
-            obj.get("POST"),
+            obj.get("post"),
         )
         put = from_union(
             [
@@ -963,13 +972,13 @@ class ResourceHeaders:
                 ),
                 from_none,
             ],
-            obj.get("PUT"),
+            obj.get("put"),
         )
         return ResourceHeaders(all, delete, get, patch, post, put)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["ALL"] = from_union(
+        result["all"] = from_union(
             [
                 lambda x: from_dict(
                     lambda x: from_union(
@@ -989,7 +998,7 @@ class ResourceHeaders:
             ],
             self.all,
         )
-        result["DELETE"] = from_union(
+        result["delete"] = from_union(
             [
                 lambda x: from_dict(
                     lambda x: from_union(
@@ -1009,7 +1018,7 @@ class ResourceHeaders:
             ],
             self.delete,
         )
-        result["GET"] = from_union(
+        result["get"] = from_union(
             [
                 lambda x: from_dict(
                     lambda x: from_union(
@@ -1029,7 +1038,7 @@ class ResourceHeaders:
             ],
             self.get,
         )
-        result["PATCH"] = from_union(
+        result["patch"] = from_union(
             [
                 lambda x: from_dict(
                     lambda x: from_union(
@@ -1049,7 +1058,7 @@ class ResourceHeaders:
             ],
             self.patch,
         )
-        result["POST"] = from_union(
+        result["post"] = from_union(
             [
                 lambda x: from_dict(
                     lambda x: from_union(
@@ -1069,7 +1078,7 @@ class ResourceHeaders:
             ],
             self.post,
         )
-        result["PUT"] = from_union(
+        result["put"] = from_union(
             [
                 lambda x: from_dict(
                     lambda x: from_union(

@@ -22,6 +22,7 @@
       ]
     }
   ],
+  "statusResourceId": "me",
   "resources": [
     {
       "resourceId": "companies",
@@ -36,9 +37,8 @@
       "subresource": "employees"
     },
     {
-      "resourceId": "status",
-      "authId": "oauth",
-      "resourceName": "me"
+      "resourceId": "me",
+      "authId": "oauth"
     },
     {
       "resourceId": "payments",

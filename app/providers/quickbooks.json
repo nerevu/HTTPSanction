@@ -12,11 +12,11 @@
         "com.intuit.quickbooks.accounting"
       ],
       "headers": {
-        "ALL": {
+        "all": {
           "Content-Type": "application/json"
         }
       },
-      "params": {
+      "paramMap": {
         "start": "start_date",
         "end": "end_date",
         "fields": "columns"
@@ -49,7 +49,7 @@
     {
       "resourceId": "companyinfo",
       "authId": "sandbox",
-      "rid": "{realm_id}"
+      "rid": "{realmId}"
     },
     {
       "resourceId": "Transactions",

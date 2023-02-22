@@ -60,6 +60,7 @@ COMMON_ROUTES = {
 AUTH_ROUTES = {
     ("auth", "GET"): "authenticate",
     ("auth", "DELETE"): "revoke",
+    ("auth", "PATCH"): "refresh",
     ("refresh", "GET"): "refresh",
     ("status", "GET"): "status",
 }

@@ -2,21 +2,44 @@
   "prefix": "airtable",
   "auths": [
     {
+      "authId": "base",
       "authType": "bearer",
+      "documentationURL": "https://airtable.com/developers/web/api/oauth-reference",
+      "personalAccessToken": "$AIRTABLE_PAT",
+      "attrs": {
+        "baseId": "$AIRTABLE_BASE_ID"
+      }
+    },
+    {
+      "authId": "public",
+      "parent": "base",
       "apiBaseURL": "https://api.airtable.com/v0/{baseId}",
-      "documentationURL": "https://airtable.com/{baseId}/api/docs",
       "params": {
         "maxRecords": 2048,
         "pageSize": 100,
         "offset": null,
         "view": null
-      },
-      "subkey": "records",
-      "attrs": {
-        "token": "$AIRTABLE_API_KEY",
-        "baseId": "$AIRTABLE_BASE_ID"
       }
+    },
+    {
+      "authId": "meta",
+      "parent": "base",
+      "apiBaseURL": "https://api.airtable.com/v0/meta",
+      "isDefault": true
     }
   ],
-  "resources": []
+  "statusResourceId": "bases",
+  "resources": [
+    {
+      "resourceId": "records",
+      "authId": "public",
+      "resourceName": "$AIRTABLE_TABLE_ID",
+      "subkey": "records"
+    },
+    {
+      "resourceId": "bases",
+      "authId": "meta",
+      "subkey": "bases"
+    }
+  ]
 }

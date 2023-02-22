@@ -36,12 +36,13 @@ from app.routes.api import (
     create_blueprint_route,
     create_home_route,
     create_method_view_route,
+    create_resource_routes,
 )
 
 try:
-    from app.api_configs import APIConfig, MethodViewRouteParams, api_config_from_dict
+    from app.api_configs import APIConfig, api_config_from_dict
 except ImportError:
-    APIConfig = MethodViewRouteParams = api_config_from_dict = None
+    APIConfig = api_config_from_dict = None
 
 
 ARGS_KEY = f"{__name__}.args"
@@ -131,14 +132,12 @@ def manager(script_info, ctx, verbose=0, quiet=False, **kwargs):
         environ["PORT"] = str(script_info.port)
 
         for api_config in gen_api_configs():
-            [
-                create_method_view_route(params)
-                for params in api_config.method_view_route_params
-            ]
-            [
-                create_blueprint_route(params)
-                for params in api_config.blueprint_route_params
-            ]
+            mvr_params = api_config.method_view_route_params
+            bpr_params = api_config.blueprint_route_params
+            ar_params = api_config.auth_route_params
+
+            [create_method_view_route(params) for params in mvr_params]
+            [create_blueprint_route(params) for params in bpr_params]
             create_home_route(api_config.description, api_config.message)
 
             for provider in gen_providers(api_config):
@@ -146,9 +145,10 @@ def manager(script_info, ctx, verbose=0, quiet=False, **kwargs):
                 augment_auth(provider, authentication)
                 ckwargs = {"prefix": provider.prefix, "auth": authentication}
                 [
-                    create_method_view_route(params, **ckwargs)
-                    for params in api_config.auth_route_params
+                    create_method_view_route(params, provider=provider, **ckwargs)
+                    for params in ar_params
                 ]
+                create_resource_routes(provider, **ckwargs)
     else:
         verbose = ctx.params["verbose"]
 
@@ -228,6 +228,8 @@ def _format_json(where):
         ignored = spec.match_files(paths)
 
         for document in set(paths).difference(ignored):
+            logger.info(f"Formatting {document.relative_to('.')}…")
+
             with document.open() as f:
                 try:
                     obj = pyjson5.load(f)
@@ -235,7 +237,6 @@ def _format_json(where):
                     obj = {}
 
             with document.open("w") as f:
-                logger.info(f"Formatting {document.relative_to('.')}")
                 formatted = json.dumps(obj, indent=2)
                 f.write(formatted)
                 f.write("\n")
@@ -366,7 +367,11 @@ def schema_to_code(schema):
 def validate_schema(schema):
     """Validate json schemas"""
     num_errors = 0
-    schema_names = SCHEMAS if schema == "all" else [schema]
+    all_schemas = [
+        path.stem.replace(".schema", "")
+        for path in Path(SCHEMA_DIR).glob("*schema.json")
+    ]
+    schema_names = all_schemas if schema == "all" else [schema]
 
     for schema_name in schema_names:
         source = f"{SCHEMA_DIR}/{schema_name}.schema.json"
@@ -376,6 +381,7 @@ def validate_schema(schema):
             Draft7Validator.check_schema(_schema)
         except SchemaError as e:
             num_errors += 1
+            logger.error(f"{source} is invalid!")
             logger.error(e)
         else:
             logger.info(f"{source} is valid!")
@@ -417,6 +423,7 @@ def validate_data(schema):
                 num_errors += len(errors)
 
                 if errors:
+                    logger.error(f"{document} is invalid!")
                     [logger.error(error) for error in errors]
                 else:
                     logger.info(f"{document} is valid!")
@@ -429,6 +436,7 @@ def validate_data(schema):
                     validate_providers(providers)
                 except AssertionError as e:
                     num_errors += 1
+                    logger.error(f"{source} is invalid!")
                     logger.error(e)
                 else:
                     logger.info(f"{source} is valid!")
