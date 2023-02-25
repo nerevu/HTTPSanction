@@ -11,8 +11,8 @@ from enum import Enum, auto
 from functools import partial
 from itertools import chain
 from json import JSONDecodeError
+from os import path as p
 from random import uniform
-from shlex import quote
 from tempfile import NamedTemporaryFile
 from time import sleep
 from typing import Union
@@ -37,9 +37,9 @@ from oauthlib.oauth2 import (
     MobileApplicationClient,
     TokenExpiredError,
 )
+from requests import Response
 from requests.auth import AuthBase, HTTPBasicAuth
 from requests.exceptions import ChunkedEncodingError, ConnectionError
-from requests.models import Request
 from requests_oauthlib import OAuth1Session, OAuth2Session
 from requests_oauthlib.oauth1_session import TokenRequestDenied
 
@@ -55,6 +55,7 @@ logger = gogo.Gogo(
 ).logger
 logger.propagate = False
 
+BASEDIR = p.dirname(__file__)
 SET_TIMEOUT = Config.SET_TIMEOUT
 OAUTH_EXPIRY_SECONDS = 3600
 EXPIRATION_BUFFER = 30
@@ -173,6 +174,7 @@ class OAuth2BaseClient(BaseClient):
         cache.set(f"{self.prefix}_created_at", self.created_at)
         cache.set(f"{self.prefix}_expires_at", self.expires_at)
         cache.set(f"{self.prefix}_realm_id", self.realm_id)
+        cache.set(f"{self.prefix}_attrs", self.attrs)
 
     def restore(self):
         logger.debug(f"restoring {self}")
@@ -192,6 +194,7 @@ class OAuth2BaseClient(BaseClient):
         self.expires_at = cache.get(f"{self.prefix}_expires_at") or def_expires_at
         self.expires_in = (self.expires_at - dt.now(timezone.utc)).total_seconds()
         self.realm_id = cache.get(f"{self.prefix}_realm_id")
+        self.attrs = cache.get(f"{self.prefix}_attrs")
 
 
 class FlowTypes(Enum):
@@ -211,7 +214,7 @@ FLOW_TYPES = {
 
 @dataclass(repr=False)
 class OAuth2Client(OAuth2BaseClient):
-    extra: dict = field(init=False, default_factory=dict)
+    extra: dict = field(default_factory=dict, init=False)
     token_type: str = field(default="Bearer", init=False)
     oauth_session: OAuth2Session = field(default=None, init=False)
     tried_headless_auth: bool = field(default=False, init=False)
@@ -258,14 +261,14 @@ class OAuth2Client(OAuth2BaseClient):
             except Exception as e:
                 self.error = f"{self.prefix} error authenticating: {str(e)}"
             else:
-                if self.verified:
-                    self.error = ""
-                    logger.debug(f"{self.prefix} successfully authenticated!")
-                elif self.expires_in < RENEW_TIME:
+                if self.expires_in < RENEW_TIME:
                     logger.warning(
                         f"{self.prefix} token expired. Attempting to renew..."
                     )
                     self.renew_token("expired")
+                elif self.verified:
+                    self.error = ""
+                    logger.debug(f"{self.prefix} successfully authenticated!")
                 else:
                     logger.warning(
                         f"{self.prefix} not authorized. Attempting to renew..."
@@ -431,7 +434,7 @@ class OAuth2Client(OAuth2BaseClient):
     def revoke_token(self):
         # https://developer.intuit.com/app/developer/qbo/docs/develop/authentication-and-authorization/oauth-2.0#revoke-token-disconnect
         if self.revoke_url and self.verified:
-            json = get_json_response(self.revoke_url, self.client)
+            json = get_json(self.revoke_url, self.client)
         elif self.verified:
             json = {
                 "status_code": 404,
@@ -447,7 +450,6 @@ class OAuth2Client(OAuth2BaseClient):
 
 @dataclass(repr=False)
 class OAuth1Client(AuthClient):
-    request_url: str = ""
     oauth_version: int = field(default=1, init=False)
     verified: bool = field(default=False, init=False)
     oauth_token: str = field(default=None, init=False)
@@ -464,7 +466,7 @@ class OAuth1Client(AuthClient):
     def _init_credentials(self):
         if not (self.oauth_token and self.oauth_token_secret):
             try:
-                self.token = self.oauth_session.fetch_request_token(self.request_url)
+                self.token = self.oauth_session.fetch_request_token(self.token_url)
             except TokenRequestDenied as e:
                 self.error = f"Error authenticating: {str(e)}"
             else:
@@ -576,6 +578,7 @@ class OAuth1Client(AuthClient):
             self.oauth_authorization_expires_at,
         )
         cache.set(f"{self.prefix}_verified", self.verified)
+        cache.set(f"{self.prefix}_attrs", self.attrs)
 
     def restore(self):
         logger.debug(f"restoring {self}")
@@ -600,6 +603,7 @@ class OAuth1Client(AuthClient):
         ).total_seconds()
 
         self.verified = cache.get(f"{self.prefix}_verified")
+        self.attrs = cache.get(f"{self.prefix}_attrs")
 
     def renew_token(self, source):
         logger.debug(f"renew {self} from {source}")
@@ -728,7 +732,7 @@ def get_quickbooks_error(**kwargs):
     return json
 
 
-def get_other_errors(result, **kwargs):
+def get_other_errors(result: Response, **kwargs):
     message_keys = ["message", "Message", "detail", "error"]
 
     try:
@@ -756,7 +760,7 @@ def get_other_errors(result, **kwargs):
     return {"message": message, "status_code": status_code}
 
 
-def get_json_error(url, result):
+def get_json_error(url: str, result: Response):
     content_type = result.headers.get("Content-Type", "")
     is_json = content_type.endswith("json")
     is_file = content_type.endswith("pdf")
@@ -805,7 +809,13 @@ def debug_request(request: requests.PreparedRequest, verbose=False):
         logger.debug({k: v[0] for k, v in parsed.items()})
 
 
-def debug_json(client, url, method="get", status_code=200, **kwargs):
+def log_error(
+    client: AuthClientTypes,
+    url: str,
+    method: str = "get",
+    status_code: int = 200,
+    **kwargs,
+):
     try:
 
         @after_this_request
@@ -823,7 +833,9 @@ def debug_json(client, url, method="get", status_code=200, **kwargs):
     logger.error(f"Server returned {status_code}: {message}")
 
 
-def debug_status(client, unscoped=False, status_code=200, **kwargs):
+def debug_status(
+    client: AuthClientTypes, unscoped: bool = False, status_code: int = 200, **kwargs
+):
     if unscoped:
         message = f"Insufficient scope: {client.scope}."
     elif status_code == 401:
@@ -834,17 +846,17 @@ def debug_status(client, unscoped=False, status_code=200, **kwargs):
     logger.debug(message)
 
 
-def is_ok(success_code=200, **kwargs):
+def is_ok(success_code: int = 200, **kwargs) -> tuple[str, bool]:
     status_code = kwargs.get("status_code", success_code)
     ok = 200 <= status_code < 300
     return (status_code, ok)
 
 
-def get_result(url, client, method="get", **kwargs):
-    params = kwargs.get("params") or {}
-    data = kwargs.get("data") or {}
-    json_data = kwargs.get("json") or {}
+def get_json_response(
+    url: str, client: AuthClientTypes, method: str = "get", **kwargs
+) -> Response:
     headers = kwargs.get("headers") or {}
+    vkwargs = {}
 
     try:
         requestor = client.oauth_session
@@ -856,21 +868,19 @@ def get_result(url, client, method="get", **kwargs):
     if client.auth:
         verb = partial(verb, auth=client.auth)
 
-    vkwargs = {}
-
-    if params:
+    if params := kwargs.get("params"):
         vkwargs["params"] = params
 
-    if data:
+    if data := kwargs.get("data"):
         vkwargs["data"] = data
 
-    if json_data:
+    if json_data := kwargs.get("json"):
         vkwargs["json"] = json_data
 
     return verb(url, headers=headers, **vkwargs)
 
 
-def get_errors(result, _json):
+def parse_json_response(result: Response, _json) -> dict:
     ok = result.ok
 
     try:
@@ -894,16 +904,16 @@ def get_errors(result, _json):
     return json
 
 
-def get_json(url, client, params=None, **kwargs):
-    result = None
-    params = params or {}
+def get_json_result(
+    url: str, client: AuthClientTypes, init_backoff: int = 1, **kwargs
+) -> tuple[dict, bool, Response]:
+    r = None
     success_code = kwargs["success_code"]
     retry_cnt = kwargs["retry_cnt"]
     max_retries = kwargs["max_retries"]
-    init_backoff = kwargs["init_backoff"]
 
     try:
-        result = get_result(url, client, params=params, **kwargs)
+        r = get_json_response(url, client, **kwargs)
     except TokenExpiredError:
         ok = unscoped = False
         json = {"message": "Token Expired", "status_code": 401}
@@ -914,50 +924,53 @@ def get_json(url, client, params=None, **kwargs):
             logger.info(f"Connection Closed. Waiting {wait} seconds...")
             sleep(wait)
             logger.debug("Done waiting!")
-            return get_json_response(
-                url, client, params=params, retry_cnt=retry_cnt + 1, **kwargs
-            )
+            return get_json_result(url, client, retry_cnt=retry_cnt + 1, **kwargs)
         else:
             ok = unscoped = False
             error = e.strerror or str(e)
             message = f"{error}. Max tries of {max_retries + 1} reached."
             json = {"message": message, "status_code": 408}
     else:
-        unscoped = result.headers.get("WWW-Authenticate") == "insufficient_scope"
-        ok = result.ok
+        unscoped = r.headers.get("WWW-Authenticate") == "insufficient_scope"
+        ok = r.ok
 
         try:
-            json = result.json()
+            json = r.json()
         except AttributeError:
-            json = {"message": result.text, "status_code": result.status_code}
+            json = {"message": r.text, "status_code": r.status_code}
         except JSONDecodeError:
-            json = get_json_error(url, result)
+            json = get_json_error(url, r)
         else:
-            json = get_errors(result, json)
+            json = parse_json_response(r, json)
 
     _, ok = is_ok(success_code, **json)
 
-    if result and not ok and kwargs.get("debug"):
-        debug_request(result.request)
+    if not (ok or kwargs.get("message")):
+        json["message"] = f"{r.reason}."
 
-    if result and not (ok or kwargs.get("message")):
-        json["message"] = f"{result.reason}."
-
-    return (json, unscoped, result)
+    return (json, unscoped, r)
 
 
-def get_json_response(
-    url,
-    client,
-    retry_cnt=0,
-    init_backoff=1,
-    max_retries=5,
-    success_code=200,
-    method="get",
+def get_html_response(
+    url: str, client: AuthClientTypes, debug: bool = False, **kwargs
+) -> Response:
+    headers = kwargs.get("headers") or {}
+    params = kwargs.get("params") or {}
+    fetch = partial(requests.get, auth=client.auth) if client.auth else requests.get
+    return fetch(url, headers=headers, params=params)
+
+
+def get_json(
+    url: str,
+    client: AuthClientTypes,
+    retry_cnt: int = 0,
+    max_retries: int = 5,
+    success_code: int = 200,
+    method: str = "get",
     **kwargs,
-):
+) -> dict:
     unscoped = False
-    result = None
+    r = None
 
     if not client:
         json = {"message": "No client given.", "status_code": 400}
@@ -968,11 +981,10 @@ def get_json_response(
     elif client.error:
         json = {"message": client.error, "status_code": 500}
     elif url:
-        json, unscoped, result = get_json(
+        json, unscoped, r = get_json_result(
             url,
             client,
             retry_cnt=retry_cnt,
-            init_backoff=init_backoff,
             max_retries=max_retries,
             success_code=success_code,
             method=method,
@@ -992,10 +1004,10 @@ def get_json_response(
         except AttributeError:
             pass
         else:
-            json = get_json_response(url, client, retry_cnt=1, **kwargs)
+            json = get_json(url, client, retry_cnt=1, **kwargs)
     elif status_code == 429:
         # https://developer.xero.com/documentation/guides/oauth2/limits/
-        wait = result.headers.get("Retry-After") if result is not None else None
+        wait = r.headers.get("Retry-After") if r is not None else None
 
         if wait and retry_cnt < max_retries:
             # https://github.com/psf/requests/issues/2726
@@ -1003,23 +1015,29 @@ def get_json_response(
             sleep(int(wait))
             logger.debug("Done waiting!")
 
-            return get_json_response(url, client, retry_cnt=retry_cnt + 1, **kwargs)
+            return get_json(url, client, retry_cnt=retry_cnt + 1, **kwargs)
         elif wait:
             message = f" Max tries of {max_retries} reached."
         else:
             message = " No `Retry-After` given."
 
-        json["message"] += message
+        json["message"] = f"{json.get('message')} {message}"
 
     if has_app_context():
         json["links"] = get_links(app.url_map.iter_rules())
 
+    message = json.get("message") or ""
+
     if not ok:
-        debug_json(client, url, method=method, **json)
+        log_error(client, url, method=method, **json)
 
-        if result is not None:
-            logger.info(request_to_curl(result.request))
+        if r is not None:
+            message += f" {r.reason}."
 
+            if kwargs.get("debug", client.debug):
+                debug_request(r.request)
+
+    json["message"] = message.strip()
     return json
 
 

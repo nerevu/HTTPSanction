@@ -75,7 +75,7 @@ def gen_api_configs() -> Iterator[APIConfig]:
 def get_provider(name: str) -> Provider:
     provider_dir = DATA_DIRS["provider"]
 
-    with Path(f"{provider_dir}/{name}.json").open() as f:
+    with Path(provider_dir, f"{name}.json").open() as f:
         return provider_from_dict(pyjson5.load(f))
 
 
@@ -141,14 +141,16 @@ def manager(script_info, ctx, verbose=0, quiet=False, **kwargs):
             create_home_route(api_config.description, api_config.message)
 
             for provider in gen_providers(api_config):
-                authentication = get_authentication(*provider.auths)
-                augment_auth(provider, authentication)
-                ckwargs = {"prefix": provider.prefix, "auth": authentication}
-                [
-                    create_method_view_route(params, provider=provider, **ckwargs)
-                    for params in ar_params
-                ]
-                create_resource_routes(provider, **ckwargs)
+                def_auth = get_authentication(*provider.auths)
+                augment_auth(provider, def_auth)
+                mkwargs = {
+                    "provider": provider,
+                    "prefix": provider.prefix,
+                    "auth": def_auth,
+                }
+                [create_method_view_route(params, **mkwargs) for params in ar_params]
+
+                create_resource_routes(provider)
     else:
         verbose = ctx.params["verbose"]
 
@@ -163,6 +165,8 @@ def manager(script_info, ctx, verbose=0, quiet=False, **kwargs):
 
     if flask_config.get("DEBUG"):
         environ["FLASK_DEBUG"] = str(flask_config["DEBUG"]).lower()
+
+    environ["FLASK_RUN_EXTRA_FILES"] = flask_config["FLASK_RUN_EXTRA_FILES"]
 
 
 @manager.command()
@@ -374,7 +378,7 @@ def validate_schema(schema):
     schema_names = all_schemas if schema == "all" else [schema]
 
     for schema_name in schema_names:
-        source = f"{SCHEMA_DIR}/{schema_name}.schema.json"
+        source = Path(SCHEMA_DIR, f"{schema_name}.schema.json")
         _schema = pyjson5.load(open(source))
 
         try:

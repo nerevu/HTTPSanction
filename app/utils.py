@@ -39,7 +39,8 @@ logger.propagate = False
 ENCODING = "utf-8"
 EPOCH = dt(*gmtime(0)[:6])
 # https://stackoverflow.com/a/1176023/408556
-PASCAL_PATTERN = re.compile(r"(?<!^)(?=[A-Z])")
+ACRONYM_PATTERN = re.compile(r"(.)([A-Z][a-z]+)")
+PASCAL_PATTERN = re.compile(r"([a-z0-9])([A-Z])")
 
 
 MIMETYPES = [
@@ -478,8 +479,9 @@ def gen_config(app):
 
 
 # https://stackoverflow.com/a/1176023/408556
-def camel_to_snake_case(name):
-    return PASCAL_PATTERN.sub("-", name).lower()
+def camel_to_kebab_case(name):
+    name = ACRONYM_PATTERN.sub(r"\1-\2", name)
+    return PASCAL_PATTERN.sub(r"\1-\2", name).lower()
 
 
 def snake_to_pascal_case(text: str) -> str:
@@ -495,7 +497,7 @@ def parse_request(app=None):
 
     json = request.get_json(force=True, silent=True) or {}
     _kwargs = {**args, **form, **json}
-    kwargs = {camel_to_snake_case(k): parse(v) for k, v in _kwargs.items()}
+    kwargs = {camel_to_kebab_case(k): parse(v) for k, v in _kwargs.items()}
 
     if app:
         with app.app_context():

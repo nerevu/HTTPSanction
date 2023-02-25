@@ -15,7 +15,7 @@ from app import cache
 from app.helpers import flask_formatter as formatter
 from app.utils import (
     cache_header,
-    camel_to_snake_case,
+    camel_to_kebab_case,
     gen_config,
     get_links,
     get_request_base,
@@ -46,13 +46,13 @@ class PatchedMethodView(MethodView):
         return MethodView.dispatch_request(self, *args, **kwargs)
 
     def __attrs_post_init__(self):
-        dash_class = camel_to_snake_case(type(self).__name__)
+        dash_class = camel_to_kebab_case(type(self).__name__)
 
         if self.prefix:
             self.lowered = self.prefix.lower()
             self.path = f"{PREFIX}/{self.lowered}-{dash_class}"
         else:
-            self.lowered = None
+            self.lowered = ""
             self.path = f"{PREFIX}/{dash_class}"
 
         self._kwargs = None

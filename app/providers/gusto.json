@@ -1,4 +1,5 @@
 {
+  "$schema": "../schemas/provider.schema.json",
   "prefix": "gusto",
   "auths": [
     {
@@ -18,10 +19,7 @@
         "companyId": "$GUSTO_COMPANY_ID"
       },
       "scope": [
-        "public",
-        "payrolls.read",
-        "employees.read",
-        "companies.read"
+        "public"
       ]
     }
   ],

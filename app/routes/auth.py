@@ -4,14 +4,16 @@
 Provides Auth routes.
 
 """
-from datetime import datetime as dt, timedelta
-
+from collections.abc import Callable
+from datetime import date, datetime as dt, timedelta
+from json import dump, loads
+from json.decoder import JSONDecodeError
 from pathlib import Path
 from urllib.parse import unquote
 
 import pygogo as gogo
 
-from attr import dataclass, field
+from attr import dataclass, field, validators
 from flask import (
     current_app as app,
     has_app_context,
@@ -20,7 +22,7 @@ from flask import (
     session,
     url_for,
 )
-
+from meza.fntools import listize, remove_keys
 from riko.dotdict import DotDict
 
 from app import LOG_LEVELS, cache
@@ -29,15 +31,13 @@ from app.authclient import (
     AuthClientTypes,
     callback,
     get_auth_client,
-    get_json_response,
+    get_json,
 )
-
 from app.helpers import flask_formatter as formatter, get_verbosity
 from app.providers import Authentication
 from app.route_helpers import get_status_resource
 from app.routes import PatchedMethodView
-
-from app.utils import extract_field, jsonify
+from app.utils import extract_field, extract_fields, jsonify, parse_item
 
 try:
     from app.providers import Provider, Resource
@@ -60,8 +60,22 @@ def get_resource_url(resource: Resource, auth: Authentication):
     if auth.api_ext:
         url += f".{auth.api_ext}"
 
-    # Some APIs urls (like mailgun) have a section that may or may not be present
-    return url.replace("/None", "")
+    return url
+
+
+def process_result(result, fields=None, black_list=None, prefix=None, **kwargs):
+    if black_list:
+        result = (remove_keys(item, *black_list) for item in result)
+
+    if fields:
+        result = (dict(extract_fields(item, *fields)) for item in result)
+
+    result = (dict(parse_item(item, prefix=prefix)) for item in result)
+
+    if kwargs:
+        result = ({**item, **kwargs} for item in result)
+
+    return result
 
 
 @dataclass
@@ -74,13 +88,13 @@ class BaseView(PatchedMethodView):
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
-        kwargs = {
-            "verbosity": app.config["VERBOSITY"],
-            "debug": self.auth.debug,
-            **app.config,
-        }
         self.methods = self.methods or ["GET"]
-        self.verbosity = get_verbosity(**kwargs)
+
+        if self.auth.debug is None:
+            self.auth.debug = app.config["DEBUG"]
+
+        verbosity = app.config["VERBOSITY"]
+        self.verbosity = get_verbosity(verbosity=verbosity, debug=self.auth.debug)
         logger.setLevel(LOG_LEVELS.get(self.verbosity))
 
         if not self.auth.auth_id:
@@ -94,6 +108,9 @@ class BaseView(PatchedMethodView):
         if not self.auth.redirect_uri:
             self.auth.redirect_uri = f"/{self.prefix}-callback"
 
+        if self.auth.username and not self.auth.password:
+            self.auth.password = ""
+
         if not self.auth.flow_type:
             self.auth.flow_type = "web"
 
@@ -103,7 +120,7 @@ class BaseView(PatchedMethodView):
         if not self.auth.params:
             self.auth.params = {}
 
-        api_url = kwargs.get("API_URL").format(app.config["PORT"], **kwargs)
+        api_url = app.config["API_URL"]
 
         if self.auth.redirect_uri.startswith("/") and api_url:
             self.auth.redirect_uri = f"{api_url}{self.auth.redirect_uri}"
@@ -121,11 +138,10 @@ class BaseView(PatchedMethodView):
             else:
                 rid = self.provider.status_resource_id
                 logger.error(f"No resource with resourceId {rid} found.")
-                breakpoint()
 
         if has_app_context():
             args = (self.prefix, self.auth)
-            self.client = get_auth_client(*args, **kwargs)
+            self.client = get_auth_client(*args, **app.config)
 
     @property
     def _params(self):
@@ -174,11 +190,9 @@ class BaseView(PatchedMethodView):
 
         return {**HEADERS, **auth_headers, **resource_headers}
 
-    def get_json_response(self, url, **kwargs):
-        headers = self.get_headers(**kwargs)
-        return get_json_response(
-            url, self.client, headers=headers, params=self.params, **kwargs
-        )
+    def get_json(self, url, **kwargs):
+        headers = self.get_headers()
+        return get_json(url, self.client, headers=headers, params=self.params, **kwargs)
 
 
 class Callback(BaseView):
@@ -205,15 +219,14 @@ class Auth(BaseView):
             pass
         else:
             self.client.state = session[f"{self.prefix}_state"] = state
-            self.client.save()
 
         if self.client.verified and not self.client.expired:
             if self.provider.status_resource:
                 url = get_resource_url(self.provider.status_resource, self.auth)
-                status = self.get_json_response(url)
+                status = self.get_json(url)
                 json.update(**status)
 
-            for k in ["token", "state", "realm_id"]:
+            for k in ["state", "realm_id", "token"]:
                 try:
                     value = getattr(self.client, k)
                 except AttributeError:
@@ -227,7 +240,6 @@ class Auth(BaseView):
                 if value:
                     self.auth.attrs = self.auth.attrs or {}
                     self.auth.attrs[key] = json[key] = value
-                    self.client.save()
                     logger.debug(f"Set {self.client} {key} to {value}.")
                 else:
                     self.client.error = f"path `{path}` not found in json!"
@@ -261,22 +273,224 @@ class Auth(BaseView):
 
 
 class APIResource(BaseView):
-    """An API Resource."""
+    """An API Resource.
+
+    Args:
+        prefix (str): The API.
+        resource (str): The API resource.
+
+    Kwargs:
+        rid (str): The API resource_id.
+        subkey (str): The API result field to return.
+
+    Examples:
+        >>> kwargs = {"subkey": "manufacturer"}
+        >>> opencart_manufacturer = Resource("OPENCART", "products", **kwargs)
+        >>>
+        >>> kwargs = {"subkey": "person"}
+        >>> cloze_person = Resource("CLOZE", "people", **kwargs)
+        >>>
+        >>> params = {
+        ...     "start_date: start,
+        ...     "end_date": end,
+        ...     "columns": "name,net_amount"
+        ... }
+        >>> kwargs = {"params": params}
+        >>> qb_transactions = Resource("qb", "TransactionList", **kwargs)
+    """
+
+    black_list: set[str] = field(converter=set, factory=set, kw_only=True, repr=False)
+
+    filterer: Callable = field(
+        default=None,
+        validator=validators.optional(validators.is_callable()),
+        kw_only=True,
+        repr=False,
+    )
+
+    processor: Callable = field(
+        default=process_result,
+        validator=validators.is_callable(),
+        kw_only=True,
+        repr=False,
+    )
+
+    error_msg: str = field(default="", init=False, repr=False)
+    _data: list[dict] = field(default=None, init=False)
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+        if "dry_run" in self.kwargs:
+            self.dry_run = self.kwargs["dry_run"]
+
+        if "datefmt" in self.kwargs:
+            self.resource.datefmt = self.kwargs["datefmt"]
+
+        if "end" in self.kwargs:
+            self.resource.end = self.kwargs["end"]
+
+        if "use_default" in self.kwargs:
+            self.resource.use_default = self.kwargs["use_default"]
+
+        if "dictify" in self.kwargs:
+            self.resource.dictify = self.kwargs["dictify"]
+
+        if "pos" in self.kwargs:
+            self.resource.pos = int(self.kwargs["pos"])
+
+        if not self.resource.id_field:
+            try:
+                self.resource.id_field = next(
+                    f
+                    for f in self.resource.fields
+                    if f.lower().endswith("_id") or f.endswith("Id")
+                )
+            except StopIteration:
+                self.resource.id_field = "id"
+
+        if not self.resource.name_field:
+            try:
+                self.resource.name_field = next(
+                    f for f in self.resource.fields if f.lower().endswith("name")
+                )
+            except StopIteration:
+                self.resource.name_field = "name"
+
+        if not self.resource.start:
+            self.resource.start = self.resource.end - timedelta(days=self.resource.days)
+
+    def __getitem__(self, key):
+        return self.data[key]
+
+    def __iter__(self):
+        yield from self.data.values() if self.resource.dictify else self.data
+
+    def _extract_model(self, result=None, _id=None, strict=False, **kwargs):
+        result = result or []
+        error = ""
+
+        if self.resource.id:
+            id_field = self.resource.id_field
+
+            try:
+                model = next(m for m in result if m.get(id_field) == self.resource.id)
+            except StopIteration:
+                error = f"{self} with id {id_field} not found!"
+                model = {}
+        else:
+            try:
+                model = result[self.resource.pos]
+            except (IndexError, TypeError):
+                error = f"{self} at pos {self.resource.pos} not found!"
+                model = {}
+
+        if model:
+            self.resource.id = model.get(self.resource.id_field)
+
+            if strict:
+                assert self.resource.id, f"{self} has no ID!"
+        elif strict:
+            assert model, error
+
+        return model
+
+    def _extract_collection(self, result=None, _id=None, strict=False, **kwargs):
+        result = result or []
+
+        if strict:
+            assert result, f"{self} has no collection!"
+
+        return result
+
+    def extract_model(self, _id=None, strict=False, **kwargs):
+        json = self.get_json(_id, **kwargs)
+        return self._extract_model(_id=_id, strict=strict, **json)
+
+    def extract_collection(self, strict=False, **kwargs):
+        json = self.get_json(**kwargs)
+        return self._extract_collection(strict=strict, **json)
+
+    def extract(self, *args, **kwargs):
+        json = self.get_json(**kwargs)
+
+        if self.resource.id or self.resource.use_default:
+            result = self._extract_model(*args, **kwargs, **json)
+        else:
+            result = self._collection(*args, **kwargs, **json)
+
+        return result
+
+    @property
+    def data(self):
+        if self._data is None:
+            data = self.get()
+
+            if self.resource.dictify:
+                self._data = dict(
+                    (item.get(self.resource.id_field), item) for item in data
+                )
+            else:
+                self._data = data
+
+        return self._data
+
+    def filter_result(self, *args):
+        if self.filterer and not self.id:
+            result = list(filter(self.filterer, args))
+        else:
+            result = args
+
+        return result
 
     @property
     def api_url(self):
         return get_resource_url(self.resource, self.auth)
 
-    def parse_result(self, *args):
-        try:
-            result = args[self.resource.pos]
-        except (IndexError, TypeError):
-            result = None
-            self.resource.eof = True
-        else:
-            self.resource.id = result.get(self.resource.id_field)
+    def get_json(self, _id=None, **kwargs):
+        """Get an API Resource.
+        Kwargs:
+            rid (str): The API resource_id.
 
-        return result
+        Examples:
+            >>> kwargs = {"rid": "abc", "subkey": "manufacturer"}
+            >>> opencart_manufacturer = Resource("OPENCART", "products", **kwargs)
+            >>> opencart_manufacturer.get()
+            >>>
+            >>> kwargs = {"subkey": "person"}
+            >>> cloze_person = Resource("CLOZE", "people", **kwargs)
+            >>> cloze_person.get(rid="name@company.com")
+            >>>
+            >>> kwargs = {"fields": ["name", "net_amount"], "start": start}
+            >>> qb_transactions = Resource("qb", "TransactionList", **kwargs)
+            >>> qb_transactions.get()
+        """
+        if _id:
+            self.resource.id = _id
+
+        _id = self.resource.id
+        json = get_json(self.api_url, self.client, **kwargs)
+
+        if json["ok"]:
+            try:
+                result = DotDict(json).get(self.resource.result_key) or []
+            except KeyError:
+                result = []
+
+            _result = list(
+                self.processor(
+                    listize(result), self.resource.fields, prefix=self.prefix
+                )
+            )
+            result = self.filter_result(*_result)
+        else:
+            result = []
+
+        if self.error_msg:
+            logger.error(self.error_msg)
+            json["message"] = f"{self.error_msg}: {self.url}"
+
+        json["result"] = result
+        return json
 
     def get(self, **kwargs):
         """Get an API Resource.
@@ -296,17 +510,8 @@ class APIResource(BaseView):
             >>> qb_transactions = Resource("qb", "TransactionList", **kwargs)
             >>> qb_transactions.get()
         """
-        headers = self.get_headers("GET")
-        rkwargs = {"headers": headers, "params": self.params, **kwargs}
-        json = get_json_response(self.api_url, self.client, **rkwargs)
-        result = json.get("result")
+        json = get_json(params=self.params, **kwargs)
+        if self.resource.use_default and not self.resource.id:
+            json["result"] = self._extract_model(**json)
 
-        if json["ok"]:
-            if self.resource.subkey:
-                result = DotDict(result).get(self.resource.subkey, result)
-
-            if self.resource.use_default and not self.resource.id:
-                result = self.parse_result(*result)
-
-        json["result"] = result
         return jsonify(**json)

@@ -45,7 +45,7 @@
         "domains"
       ]
     },
-    "statusResource": {
+    "_statusResource": {
       "description": "The resource represented by the statusResourceId",
       "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/status-resource.schema.json"
     },
@@ -61,8 +61,8 @@
     }
   },
   "required": [
+    "resources",
     "auths",
-    "prefix",
-    "resources"
+    "prefix"
   ]
 }

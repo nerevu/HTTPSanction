@@ -16,6 +16,7 @@
 from collections import namedtuple
 from datetime import timedelta
 from os import getenv, path as p, urandom
+from pathlib import Path
 
 from dotenv import load_dotenv
 from mezmorize.utils import get_cache_config, get_cache_type
@@ -76,6 +77,8 @@ def get_server_name(heroku=False):
 
 
 class Config(object):
+    json_files = map(str, Path("app", "providers").glob("*.json"))
+
     DEBUG = False
     TESTING = False
     DEBUG_MEMCACHE = True
@@ -86,6 +89,7 @@ class Config(object):
 
     # see http://bootswatch.com/3/ for available swatches
     FLASK_ADMIN_SWATCH = "cerulean"
+    FLASK_RUN_EXTRA_FILES = ":".join(json_files)
     ADMIN = Admin(__AUTHOR__, __AUTHOR_EMAIL__)
     ADMINS = frozenset([ADMIN.email])
     HOST = "127.0.0.1"

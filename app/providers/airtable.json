@@ -1,4 +1,5 @@
 {
+  "$schema": "../schemas/provider.schema.json",
   "prefix": "airtable",
   "auths": [
     {
@@ -34,12 +35,12 @@
       "resourceId": "records",
       "authId": "public",
       "resourcePath": "$AIRTABLE_TABLE_ID",
-      "subkey": "records"
+      "resultKey": "records"
     },
     {
       "resourceId": "bases",
       "authId": "meta",
-      "subkey": "bases"
+      "resultKey": "bases"
     }
   ]
 }

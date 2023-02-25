@@ -57,8 +57,13 @@
         "project_tasks"
       ]
     },
+    "datefmt": {
+      "description": "The date format for parsing `start` and `end` fields",
+      "type": "string",
+      "default": ""
+    },
     "idField": {
-      "description": "Field representing the resource ID (defaults to first field that equals `id` or ends with either `_id` or `Id`)",
+      "description": "Field representing item ID of the resource (defaults to first field that equals `id` or ends with either `_id` or `Id`)",
       "type": "string",
       "default": ""
     },
@@ -77,19 +82,11 @@
         "Contacts"
       ]
     },
-    "subkey": {
-      "description": "The path to extract from the parsed API response (should return a list of items)",
-      "type": "string",
-      "default": "",
-      "examples": [
-        "items"
-      ]
-    },
     "resultKey": {
       "description": "The path to extract from the parsed API response (should return a list of items)",
       "type": "string",
-      "default": "result",
       "examples": [
+        "items",
         "Contacts",
         "result"
       ]
@@ -131,7 +128,7 @@
       "default": false
     },
     "pos": {
-      "description": "Current position item to fetch",
+      "description": "Position of the item to fetch",
       "type": "number",
       "default": 0
     },

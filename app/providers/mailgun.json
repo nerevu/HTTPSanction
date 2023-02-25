@@ -1,4 +1,5 @@
 {
+  "$schema": "../schemas/provider.schema.json",
   "prefix": "mailgun",
   "auths": [
     {
@@ -29,30 +30,30 @@
     {
       "resourceId": "domains",
       "authId": "account",
-      "subkey": "domain"
+      "resultKey": "0.items"
     },
     {
       "resourceId": "emailLists",
       "resourcePath": "lists/{listPrefix}@{domain}",
       "authId": "account",
       "idField": "address",
-      "subkey": "list",
       "attrs": {
         "listPrefix": "$MAILGUN_LIST_PREFIX",
         "mid": "$MAILGUN_MEMBER_ID"
-      }
+      },
+      "resultKey": "list"
     },
     {
       "resourceId": "emailListMember",
       "resourcePath": "lists/{listPrefix}@{domain}/members/{mid}",
       "parent": "emailLists",
-      "subkey": "items"
+      "resultKey": "items"
     },
     {
       "resourceId": "emailListMembers",
       "resourcePath": "lists/{listPrefix}@{domain}/members",
       "parent": "emailLists",
-      "subkey": "list"
+      "resultKey": "list"
     },
     {
       "resourceId": "Email",

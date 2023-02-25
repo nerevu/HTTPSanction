@@ -1,4 +1,5 @@
 {
+  "$schema": "../schemas/provider.schema.json",
   "prefix": "github",
   "auths": [
     {

@@ -205,10 +205,9 @@
       "type": "string",
       "default": "json"
     },
-    "subkey": {
+    "resultKey": {
       "description": "The path to extract from the parsed API response (should return a list of items)",
       "type": "string",
-      "default": "",
       "examples": [
         "items"
       ]

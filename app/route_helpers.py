@@ -8,6 +8,7 @@
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import asdict
+from datetime import date, datetime as dt
 from os import getenv, path as p
 
 import pygogo as gogo
@@ -25,11 +26,11 @@ try:
         ParamMap,
         Provider,
         Resource,
-        ResourceHeaders,
+        StatusResourceHeaders,
     )
 except ImportError:
     Authentication = AuthenticationHeaders = HeadlessElement = None
-    MethodMap = ParamMap = Provider = Resource = ResourceHeaders = None
+    MethodMap = ParamMap = Provider = Resource = StatusResourceHeaders = None
 
 logger = gogo.Gogo(
     __name__, low_formatter=formatter, high_formatter=formatter, monolog=True
@@ -72,7 +73,7 @@ def get_authentication(
         elif args:
             authentication = args[0]
         else:
-            raise AssertionError("No auths found in provider !")
+            raise AssertionError("No auths found in provider!")
 
     return authentication
 
@@ -126,17 +127,28 @@ def replace_envs(value):
     return replaced
 
 
-def _format(value, **kwargs):
+def _format(value, extractions=None, **kwargs):
+    extractions = extractions or {}
     formatted = value
 
     try:
-        formatted = value.format(**kwargs)
+        extraction = any(k in value for k in extractions)
+    except TypeError:
+        extraction = False
+
+    try:
+        formatted = value if extraction else value.format(**kwargs)
     except AttributeError:
         try:
-            formatted = {k: _format(v, **kwargs) for k, v in value.items()}
+            formatted = {
+                k: _format(v, extractions=extractions, **kwargs)
+                for k, v in value.items()
+            }
         except AttributeError:
             if is_listlike(value):
-                formatted = [_format(v) for v in value]
+                formatted = [
+                    _format(v, extractions=extractions, **kwargs) for v in value
+                ]
 
     return formatted
 
@@ -158,13 +170,17 @@ def set_auth_attr(authentication: Authentication, key: str, value):
 
 def set_resource_attr(resource: Resource, key: str, value):
     if key == "headers":
-        value = ResourceHeaders.from_dict(value)
+        value = StatusResourceHeaders.from_dict(value)
 
     setattr(resource, key, value)
 
 
 def augment_auth(provider: Provider, authentication: Authentication):
+    if authentication.augmented:
+        return
+
     authentication.attrs = authentication.attrs or {}
+    authentication.extractions = authentication.extractions or {}
     kwargs = {}
 
     if authentication.parent:
@@ -177,8 +193,15 @@ def augment_auth(provider: Provider, authentication: Authentication):
                 set_auth_attr(authentication, k, v)
 
         parent_attrs = parent.attrs or {}
+        parent_extractions = parent.extractions or {}
         [authentication.attrs.setdefault(k, v) for k, v in parent_attrs.items()]
+        [
+            authentication.extractions.setdefault(k, v)
+            for k, v in parent_extractions.items()
+        ]
 
+    authentication.data_key = authentication.data_key or "json"
+    authentication.param_map = authentication.param_map or ParamMap.from_dict({})
     authAsdict = asdict(authentication)
     kwargs.update(authAsdict)
     kwargs.update(authentication.attrs)
@@ -195,23 +218,36 @@ def augment_auth(provider: Provider, authentication: Authentication):
         if v and v != (formatted := _format(v, **kwargs)):
             set_auth_attr(authentication, k, formatted)
 
+    authentication.augmented = True
+
 
 def augment_resource(provider: Provider, resource: Resource):
     _resource = f"{provider.prefix}/{resource.resource_id}"
 
     if resource.parent:
         parent = get_resource(*provider.resources, resource_id=resource.parent)
+        resource.auth_id = resource.auth_id or parent.auth_id
+        resource.resource_path = resource.resource_path or parent.resource_path
+        parent_result_key = parent.result_key
+        # resource.parent = parent
+    else:
+        parent_result_key = ""
 
-        if parent:
-            resource.auth_id = resource.auth_id or parent.auth_id
-            resource.resource_path = resource.resource_path or parent.resource_path
-            # resource.parent = parent
-        else:
-            raise AssertionError(
-                f"No parent resource with resourceId {resource.parent} found."
-            )
+    if resource.result_key:
+        result_key = f"result.{resource.result_key}"
+    else:
+        result_key = parent_result_key or "result"
 
     resource.resource_path = resource.resource_path or resource.resource_id
+    resource.result_key = result_key
+    resource.pos = resource.pos or 0
+    resource.datefmt = resource.datefmt or "%Y-%m-%d"
+
+    if resource.end:
+        resource.end = dt.strptime(resource.end, resource.datefmt)
+    else:
+        resource.end = date.today()
+
     authentication = get_authentication(*provider.auths, auth_id=resource.auth_id)
     kwargs = authentication.attrs or {}
     kwargs.update(resource.attrs or {})
@@ -252,3 +288,33 @@ def validate_providers(*args: Provider):
             for auth_id, count in most_common:
                 _path = f"{provider.prefix}/auths[?]/{auth_id}"
                 raise AssertionError(f"The authId {_path} is specified {count} times!")
+
+
+def get_value(value, obj=None, **kwargs):
+    result = []
+
+    try:
+        _func = value.get("func")
+    except AttributeError:
+        _func = fargs = fkwargs = key = conditional = None
+    else:
+        fargs = value.get("args", [])
+        fkwargs = value.get("kwargs", [])
+        key = value.get("key")
+        conditional = value.get("conditional")
+        result = value.get("result")
+
+    if _func:
+        func = get_attrs(obj, *_func.split("."))
+        _args = (_format(a, **kwargs) for a in fargs)
+        _kwargs = {k: _format(v, **kwargs) for k, v in fkwargs}
+        _attr_value = func(*_args, **_kwargs)
+        attr_value = _attr_value[_format(key, **kwargs)] if key else _attr_value
+    elif conditional and _format(conditional, **kwargs):
+        attr_value = _format(result[0], **kwargs)
+    elif conditional:
+        attr_value = _format(result[1], **kwargs)
+    else:
+        attr_value = _format(value, **kwargs)
+
+    return attr_value

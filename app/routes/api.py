@@ -5,7 +5,6 @@
 
     Provides additional api endpoints
 """
-from collections.abc import Sequence
 from importlib import import_module
 
 import pygogo as gogo
@@ -13,11 +12,16 @@ import pygogo as gogo
 from flask import Blueprint, current_app as app
 
 from app.helpers import flask_formatter as formatter, get_member, toposort
-from app.route_helpers import augment_resource, get_status_resource
+from app.route_helpers import (
+    augment_auth,
+    augment_resource,
+    get_authentication,
+    get_status_resource,
+)
 from app.routes.auth import APIResource
 from app.utils import (
     cache_header,
-    camel_to_snake_case,
+    camel_to_kebab_case,
     get_links,
     jsonify,
     make_cache_key,
@@ -60,11 +64,11 @@ def create_resource_route(
     resource: Resource,
     provider: Provider,
     resource_id: str = None,
+    prefix: str = None,
     **kwargs,
 ):
-    prefix = provider.prefix
     resource_id = resource_id or resource.resource_id
-    converted = camel_to_snake_case(resource_id).replace("_", "-")
+    converted = camel_to_kebab_case(resource_id).replace("_", "-")
     name = f"{prefix}-{converted}"
     create_route(
         APIResource,
@@ -77,15 +81,24 @@ def create_resource_route(
     )
 
 
-def create_resource_routes(provider: Provider, **kwargs):
+def create_resource_routes(provider: Provider):
+    kwargs = {"prefix": provider.prefix}
+
     if provider.resources:
         for _, resource in toposort(*provider.resources, id_key="resource_id"):
-            augment_resource(provider, resource)
+            visible = not resource.hidden
+            is_status_resource = resource.resource_id == provider.status_resource
 
-            if not resource.hidden:
+            if visible or is_status_resource:
+                auth = get_authentication(*provider.auths, auth_id=resource.auth_id)
+                augment_auth(provider, auth)
+                augment_resource(provider, resource)
+                kwargs["auth"] = auth
+
+            if visible:
                 create_resource_route(resource, provider, **kwargs)
 
-            if resource.resource_id == provider.status_resource:
+            if is_status_resource:
                 create_resource_route(
                     resource, provider, resource_id="status", **kwargs
                 )
