@@ -58,6 +58,11 @@
         "default": {},
         "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/auth.schema.json"
       }
+    },
+    "webhook": {
+      "type": "object",
+      "default": {},
+      "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/webhook.schema.json"
     }
   },
   "required": [

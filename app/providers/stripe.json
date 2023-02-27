@@ -1,0 +1,8 @@
+{
+  "webhook": {
+    "signatureHeader": "HTTP_STRIPE_SIGNATURE",
+    "webhookSecret": "$STRIPE_WEBHOOK_SECRET",
+    "digest": "sha1",
+    "splitSignature": true
+  }
+}

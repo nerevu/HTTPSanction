@@ -235,5 +235,20 @@
         "POST"
       ]
     }
-  ]
+  ],
+  "webhook": {
+    "documentationURL": "https://developer.xero.com/documentation/guides/webhooks/overview",
+    "signatureHeader": "x-xero-signature",
+    "webhookSecret": "$XERO_WEBHOOK_SECRET",
+    "b64Encode": true,
+    "payloadKey": "events",
+    "resultKey": "{event_id}",
+    "extractions": {
+      "event_category": "eventCategory",
+      "event_type": "eventType",
+      "event_id": "eventId",
+      "resource_id": "ResourceId"
+    },
+    "activityName": "{event_category}_{event_type}"
+  }
 }

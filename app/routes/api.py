@@ -18,6 +18,7 @@ from app.route_helpers import (
     get_authentication,
     get_status_resource,
 )
+from app.routes import webhook
 from app.routes.auth import APIResource
 from app.utils import (
     cache_header,
@@ -147,3 +148,9 @@ def create_home_route(description: str, message: str):
     blueprint.route("/")(view_func)
     blueprint.route(PREFIX)(view_func)
     print("new home route!")
+
+
+def create_webhook_routes(**kwargs):
+    for prefix, options in kwargs.items():
+        if view := get_member(webhook, f"{prefix.title()}Hook"):
+            create_route(view, prefix, "hooks", "GET", "POST", **kwargs)

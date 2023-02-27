@@ -1,0 +1,9 @@
+{
+  "webhook": {
+    "signatureHeader": "Heroku-Webhook-Hmac-SHA256",
+    "webhookSecret": "$HEROKU_WEBHOOK_SECRET",
+    "digest": "sha256",
+    "b64Encode": true,
+    "payloadKey": "action"
+  }
+}

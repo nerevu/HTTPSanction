@@ -7,14 +7,12 @@
       "authType": "bearer",
       "documentationURL": "https://airtable.com/developers/web/api/oauth-reference",
       "personalAccessToken": "$AIRTABLE_PAT",
-      "attrs": {
-        "baseId": "$AIRTABLE_BASE_ID"
-      }
+      "attrs": {}
     },
     {
       "authId": "public",
       "parent": "base",
-      "apiBaseURL": "https://api.airtable.com/v0/{baseId}",
+      "apiBaseURL": "https://api.airtable.com/v0",
       "params": {
         "maxRecords": 2048,
         "pageSize": 100,
@@ -33,14 +31,32 @@
   "resources": [
     {
       "resourceId": "records",
+      "resourcePath": "{rid}/records",
       "authId": "public",
-      "resourcePath": "$AIRTABLE_TABLE_ID",
+      "rid": "$AIRTABLE_BASE_ID",
+      "srid": "$AIRTABLE_TABLE_ID",
       "resultKey": "records"
     },
     {
       "resourceId": "bases",
       "authId": "meta",
       "resultKey": "bases"
+    },
+    {
+      "resourceId": "payloads",
+      "resourcePath": "bases/{rid}/webhooks/{srid}/payloads",
+      "authId": "public",
+      "rid": "$AIRTABLE_BASE_ID",
+      "resultKey": "payloads"
     }
-  ]
+  ],
+  "webhook": {
+    "documentationURL": "https://airtable.com/developers/web/guides/webhooks-api",
+    "signatureHeader": "X-Airtable-Content-MAC",
+    "webhookSecret": "$AIRTABLE_WEBHOOK_SECRET",
+    "extractions": {
+      "rid": "base.id",
+      "srid": "webhook.id"
+    }
+  }
 }

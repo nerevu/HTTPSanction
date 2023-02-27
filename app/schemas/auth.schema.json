@@ -131,7 +131,7 @@
       "default": {},
       "examples": [
         {
-          "tenant_id": "result[0].tenantId"
+          "tenant_id": "[0].tenantId"
         }
       ],
       "additionalProperties": {

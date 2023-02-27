@@ -47,5 +47,10 @@
       "resourceId": "organizations",
       "authId": "bearer"
     }
-  ]
+  ],
+  "webhook": {
+    "webhookSecret": "$GITHUB_WEBHOOK_SECRET",
+    "digest": "sha1",
+    "splitSignature": true
+  }
 }

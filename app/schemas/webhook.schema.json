@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/nerevu/rorschach/master/app/schemas/webhook.schema.json",
+  "title": "Webhook",
+  "description": "A product from Acme's catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "documentationURL": {
+      "description": "URL to API resource documentation",
+      "type": "string",
+      "examples": [
+        "https://developer.xero.com/documentation/guides/webhooks/overview"
+      ]
+    },
+    "signatureHeader": {
+      "description": "The HTTP header to extract the webhook signature from",
+      "type": "string",
+      "examples": [
+        "x-xero-signature"
+      ]
+    },
+    "webhookSecret": {
+      "description": "The password to decrypt the webhook payload",
+      "type": "string",
+      "default": false
+    },
+    "digest": {
+      "description": "The webhook digest algorithm",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": "sha256",
+      "pattern": "sha1|sha256"
+    },
+    "b64Encode": {
+      "description": "Use Base64 encoding instead of Hexadecimal",
+      "type": "boolean",
+      "default": false
+    },
+    "splitSignature": {
+      "description": "Split signature at the `=` character",
+      "type": "boolean",
+      "default": false
+    },
+    "ignoreSignature": {
+      "description": "Disable verification by ignoring the signature (insecure!)",
+      "type": "boolean",
+      "default": false
+    },
+    "payloadKey": {
+      "description": "Key to extract from the payload request",
+      "type": "string"
+    },
+    "resultKey": {
+      "description": "Key to store the action result",
+      "type": "string"
+    },
+    "extractions": {
+      "description": "Key/Value pairs where key -> Attribute to store the extracted path in, and value -> Path to extract from the payload event",
+      "type": "object",
+      "default": {},
+      "examples": [
+        {
+          "event_category": "eventCategory"
+        }
+      ],
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "activityName": {
+      "description": "description",
+      "type": "string"
+    }
+  },
+  "required": [
+    "signatureHeader",
+    "webhookSecret"
+  ]
+}
