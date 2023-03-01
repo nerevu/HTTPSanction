@@ -53,7 +53,13 @@
       "authId": "sandbox"
     },
     {
+      "resourceId": "account",
+      "resourcePath": "company/{realmId}/account/{rid}",
+      "authId": "sandbox"
+    },
+    {
       "resourceId": "Transactions",
+      "rid": "$REPORT_ID",
       "resourcePath": "reports/{rid}/TransactionList",
       "documentationURL": "https://developer.intuit.com/app/developer/qbo/docs/api/accounting/report-entities/transactionlist",
       "authId": "sandbox",
@@ -77,13 +83,15 @@
           "subt_nat_amount",
           "net_amount"
         ]
-      },
-      "attrs": {
-        "rid": "$REPORT_ID"
       }
     },
     {
       "resourceId": "Invoices",
+      "resourcePath": "company/{realmId}/invoices/{rid}",
+      "authId": "sandbox"
+    },
+    {
+      "resourceId": "PaidInvoices",
       "parent": "Transactions",
       "params": {
         "transaction_type": "Invoice",

@@ -62,10 +62,7 @@
     {
       "authId": "standard",
       "apiBaseURL": "https://api.timelyapp.com/1.1/{accountId}",
-      "parent": "basic",
-      "attrs": {
-        "pid": "$TIMELY_PROJECT_ID"
-      }
+      "parent": "basic"
     }
   ],
   "statusResourceId": "accounts",
@@ -109,7 +106,8 @@
     {
       "resourceId": "ProjectTime",
       "authId": "standard",
-      "resourcePath": "projects/{pid}/events",
+      "rid": "$TIMELY_PROJECT_ID",
+      "resourcePath": "projects/{rid}/events",
       "fields": [
         "id",
         "day",
@@ -128,9 +126,9 @@
     {
       "resourceId": "ProjectTasks",
       "authId": "standard",
+      "rid": "$TIMELY_PROJECT_ID",
       "resultKey": "labels",
-      "resourcePath": "projects",
-      "useDefault": true,
+      "resourcePath": "projects/{rid}",
       "methods": [
         "GET",
         "POST"

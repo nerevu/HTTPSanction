@@ -15,9 +15,6 @@
         "start": "start_date",
         "end": "end_date"
       },
-      "attrs": {
-        "companyId": "$GUSTO_COMPANY_ID"
-      },
       "scope": [
         "public"
       ]
@@ -27,13 +24,15 @@
   "resources": [
     {
       "resourceId": "companies",
-      "resourcePath": "companies/{companyId}",
+      "rid": "$GUSTO_COMPANY_ID",
+      "resourcePath": "companies/{rid}",
       "authId": "oauth"
     },
     {
       "resourceId": "employees",
+      "rid": "$GUSTO_COMPANY_ID",
       "authId": "oauth",
-      "resourcePath": "companies/{companyId}/employees"
+      "resourcePath": "companies/{rid}/employees"
     },
     {
       "resourceId": "me",
@@ -41,12 +40,14 @@
     },
     {
       "resourceId": "payments",
+      "rid": "$GUSTO_COMPANY_ID",
       "authId": "oauth",
-      "resourcePath": "companies/{companyId}/contractor_payments"
+      "resourcePath": "companies/{rid}/contractor_payments"
     },
     {
       "resourceId": "payrolls",
-      "resourcePath": "payrolls/{companyId}/contractor_payments",
+      "rid": "$GUSTO_COMPANY_ID",
+      "resourcePath": "companies/{rid}/payrolls",
       "authId": "oauth"
     }
   ]

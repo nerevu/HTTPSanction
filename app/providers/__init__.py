@@ -1113,6 +1113,10 @@ class ResourceElement:
 
     """Unique identifier for the API resource"""
     resource_id: str
+    """item ID of the resource you want to fetch"""
+    rid: Union[int, None, str]
+    """item ID of the sub-resource you want to fetch"""
+    srid: Union[int, None, str]
     """Is resource at the end of the stream?"""
     eof: Optional[bool]
     attrs: Optional[Dict[str, Union[List[str], bool, AttrClass, int, None, str]]]
@@ -1176,6 +1180,8 @@ class ResourceElement:
     def from_dict(obj: Any) -> "ResourceElement":
         assert isinstance(obj, dict)
         resource_id = from_str(obj.get("resourceId"))
+        rid = from_union([from_int, from_none, from_str], obj.get("rid"))
+        srid = from_union([from_int, from_none, from_str], obj.get("srid"))
         eof = from_union([from_bool, from_none], obj.get("_eof"))
         attrs = from_union(
             [
@@ -1254,6 +1260,8 @@ class ResourceElement:
         use_default = from_union([from_bool, from_none], obj.get("useDefault"))
         return ResourceElement(
             resource_id,
+            rid,
+            srid,
             eof,
             attrs,
             auth_id,
@@ -1287,6 +1295,8 @@ class ResourceElement:
     def to_dict(self) -> dict:
         result: dict = {}
         result["resourceId"] = from_str(self.resource_id)
+        result["rid"] = from_union([from_int, from_none, from_str], self.rid)
+        result["srid"] = from_union([from_int, from_none, from_str], self.srid)
         result["_eof"] = from_union([from_bool, from_none], self.eof)
         result["attrs"] = from_union(
             [
@@ -1379,6 +1389,10 @@ class Resource:
 
     """Unique identifier for the API resource"""
     resource_id: str
+    """item ID of the resource you want to fetch"""
+    rid: Union[int, None, str]
+    """item ID of the sub-resource you want to fetch"""
+    srid: Union[int, None, str]
     """Is resource at the end of the stream?"""
     eof: Optional[bool]
     attrs: Optional[Dict[str, Union[List[str], bool, AttrClass, int, None, str]]]
@@ -1442,6 +1456,8 @@ class Resource:
     def from_dict(obj: Any) -> "Resource":
         assert isinstance(obj, dict)
         resource_id = from_str(obj.get("resourceId"))
+        rid = from_union([from_int, from_none, from_str], obj.get("rid"))
+        srid = from_union([from_int, from_none, from_str], obj.get("srid"))
         eof = from_union([from_bool, from_none], obj.get("_eof"))
         attrs = from_union(
             [
@@ -1520,6 +1536,8 @@ class Resource:
         use_default = from_union([from_bool, from_none], obj.get("useDefault"))
         return Resource(
             resource_id,
+            rid,
+            srid,
             eof,
             attrs,
             auth_id,
@@ -1553,6 +1571,8 @@ class Resource:
     def to_dict(self) -> dict:
         result: dict = {}
         result["resourceId"] = from_str(self.resource_id)
+        result["rid"] = from_union([from_int, from_none, from_str], self.rid)
+        result["srid"] = from_union([from_int, from_none, from_str], self.srid)
         result["_eof"] = from_union([from_bool, from_none], self.eof)
         result["attrs"] = from_union(
             [

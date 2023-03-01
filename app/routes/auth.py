@@ -5,9 +5,7 @@ Provides Auth routes.
 
 """
 from collections.abc import Callable
-from datetime import date, datetime as dt, timedelta
-from json import dump, loads
-from json.decoder import JSONDecodeError
+from datetime import datetime as dt, timedelta
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -35,7 +33,7 @@ from app.authclient import (
 )
 from app.helpers import flask_formatter as formatter, get_verbosity
 from app.providers import Authentication
-from app.route_helpers import get_status_resource
+from app.route_helpers import get_status_resource, _format
 from app.routes import PatchedMethodView
 from app.utils import extract_field, extract_fields, jsonify, parse_item
 
@@ -52,15 +50,6 @@ logger.propagate = False
 APP_DIR = Path(__file__).parents[1]
 DATA_DIR = APP_DIR.joinpath("data")
 HEADERS = {"Accept": "application/json"}
-
-
-def get_resource_url(resource: Resource, auth: Authentication):
-    url = f"{auth.api_base_url}/{resource.resource_path}"
-
-    if auth.api_ext:
-        url += f".{auth.api_ext}"
-
-    return url
 
 
 def process_result(result, fields=None, black_list=None, prefix=None, **kwargs):
@@ -142,6 +131,29 @@ class BaseView(PatchedMethodView):
         if has_app_context():
             args = (self.prefix, self.auth)
             self.client = get_auth_client(*args, **app.config)
+            self.client.attrs = self.client.attrs or {}
+
+    def __repr__(self):
+        no_rid = self.resource.resource_path.replace(f"/{self.resource.rid}", "")
+        no_srid = no_rid.replace(f"/{self.resource.srid}", "")
+        return no_srid.lower().replace("/", "-")
+
+    @property
+    def resource_id_prop(self):
+        return "srid" if len(self.resource.resource_path.split("/")) >= 2 else "rid"
+
+    @property
+    def id(self):
+        _id = getattr(self.resource, self.resource_id_prop)
+        return str(_id) if _id is not None else ""
+
+    @id.setter
+    def id(self, value):
+        return setattr(self.resource, self.resource_id_prop, value)
+
+    @property
+    def trunc_id(self, value):
+        return self.id.split("-")[0]
 
     @property
     def _params(self):
@@ -173,7 +185,21 @@ class BaseView(PatchedMethodView):
 
         return params
 
-    def get_headers(self, method: str = "GET", **kwargs):
+    @property
+    def api_url(self):
+        url = f"{self.auth.api_base_url}/{self.resource.resource_path}"
+
+        if self.id:
+            url += f"/{self.id}"
+
+        if self.auth.api_ext:
+            url += f".{self.auth.api_ext}"
+
+        return url
+
+    def get_headers(self, method: str = "GET", headers=None, **kwargs):
+        headers = headers or {}
+
         if self.auth.headers:
             auth_all_headers = self.auth.headers.all or {}
             auth_method_headers = getattr(self.auth.headers, method, {})
@@ -188,7 +214,16 @@ class BaseView(PatchedMethodView):
         else:
             resource_headers = {}
 
-        return {**HEADERS, **auth_headers, **resource_headers}
+        _headers = {**HEADERS, **auth_headers, **resource_headers, **headers}
+
+        for k, v in _headers.items():
+            attrs = {k.replace(f"{self.prefix}_", ""): v for k, v in session.items() if k.startswith(self.prefix)}
+            attrs.update(self.client.attrs)
+
+            if v and v != (formatted := _format(v, **attrs)):
+                _headers[k] = formatted
+
+        return _headers
 
     def get_json(self, url, **kwargs):
         headers = self.get_headers()
@@ -222,8 +257,7 @@ class Auth(BaseView):
 
         if self.client.verified and not self.client.expired:
             if self.provider.status_resource:
-                url = get_resource_url(self.provider.status_resource, self.auth)
-                status = self.get_json(url)
+                status = self.get_json(self.api_url)
                 json.update(**status)
 
             for k in ["state", "realm_id", "token"]:
@@ -234,13 +268,15 @@ class Auth(BaseView):
 
                 json.update({k: value})
 
-            for key, path in self.auth.extractions.items():
+            for key, _path in self.auth.extractions.items():
+                path = f"result{_path}" if _path.startswith("[") else f"result.{_path}"
                 value = extract_field(json, path)
 
                 if value:
-                    self.auth.attrs = self.auth.attrs or {}
-                    self.auth.attrs[key] = json[key] = value
-                    logger.debug(f"Set {self.client} {key} to {value}.")
+                    self.client.attrs = self.client.attrs or {}
+                    session_key = f"{self.prefix}_{key}"
+                    self.client.attrs[key] = session[session_key] = json[key] = value
+                    logger.debug(f"Set {self.client} attrs[{key}] to {value}.")
                 else:
                     self.client.error = f"path `{path}` not found in json!"
 
@@ -272,6 +308,7 @@ class Auth(BaseView):
         return jsonify(**json)
 
 
+@dataclass
 class APIResource(BaseView):
     """An API Resource.
 
@@ -316,10 +353,11 @@ class APIResource(BaseView):
     )
 
     error_msg: str = field(default="", init=False, repr=False)
-    _data: list[dict] = field(default=None, init=False)
+    _data: list[dict] = field(factory=list, init=False)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
+
         if "dry_run" in self.kwargs:
             self.dry_run = self.kwargs["dry_run"]
 
@@ -338,12 +376,12 @@ class APIResource(BaseView):
         if "pos" in self.kwargs:
             self.resource.pos = int(self.kwargs["pos"])
 
+        fields = self.resource.fields
+
         if not self.resource.id_field:
             try:
                 self.resource.id_field = next(
-                    f
-                    for f in self.resource.fields
-                    if f.lower().endswith("_id") or f.endswith("Id")
+                    f for f in fields if f.lower().endswith("_id") or f.endswith("Id")
                 )
             except StopIteration:
                 self.resource.id_field = "id"
@@ -351,7 +389,7 @@ class APIResource(BaseView):
         if not self.resource.name_field:
             try:
                 self.resource.name_field = next(
-                    f for f in self.resource.fields if f.lower().endswith("name")
+                    f for f in fields if f.lower().endswith("name")
                 )
             except StopIteration:
                 self.resource.name_field = "name"
@@ -365,15 +403,42 @@ class APIResource(BaseView):
     def __iter__(self):
         yield from self.data.values() if self.resource.dictify else self.data
 
+    def __repr__(self):
+        name = self.resource.resource_path
+
+        if self.id:
+            name += f" [id:{self.trunc_id}]"
+        else:
+            name += (
+                f" [pos:{self.resource.pos}]"
+                if self.resource.use_default
+                else " [all ids]"
+            )
+
+        return name
+
+    @property
+    def data(self):
+        if self._data is None:
+            data = self.get()
+
+            if self.resource.dictify:
+                id_field = self.resource.id_field
+                self._data = dict((item.get(id_field), item) for item in data)
+            else:
+                self._data = data
+
+        return self._data
+
     def _extract_model(self, result=None, _id=None, strict=False, **kwargs):
         result = result or []
         error = ""
 
-        if self.resource.id:
+        if self.id:
             id_field = self.resource.id_field
 
             try:
-                model = next(m for m in result if m.get(id_field) == self.resource.id)
+                model = next(m for m in result if m.get(id_field) == self.id)
             except StopIteration:
                 error = f"{self} with id {id_field} not found!"
                 model = {}
@@ -385,10 +450,10 @@ class APIResource(BaseView):
                 model = {}
 
         if model:
-            self.resource.id = model.get(self.resource.id_field)
+            self.id = model.get(self.resource.id_field)
 
             if strict:
-                assert self.resource.id, f"{self} has no ID!"
+                assert self.id, f"{self} has no ID!"
         elif strict:
             assert model, error
 
@@ -413,26 +478,12 @@ class APIResource(BaseView):
     def extract(self, *args, **kwargs):
         json = self.get_json(**kwargs)
 
-        if self.resource.id or self.resource.use_default:
+        if self.id or self.resource.use_default:
             result = self._extract_model(*args, **kwargs, **json)
         else:
             result = self._collection(*args, **kwargs, **json)
 
         return result
-
-    @property
-    def data(self):
-        if self._data is None:
-            data = self.get()
-
-            if self.resource.dictify:
-                self._data = dict(
-                    (item.get(self.resource.id_field), item) for item in data
-                )
-            else:
-                self._data = data
-
-        return self._data
 
     def filter_result(self, *args):
         if self.filterer and not self.id:
@@ -441,10 +492,6 @@ class APIResource(BaseView):
             result = args
 
         return result
-
-    @property
-    def api_url(self):
-        return get_resource_url(self.resource, self.auth)
 
     def get_json(self, _id=None, **kwargs):
         """Get an API Resource.
@@ -464,10 +511,13 @@ class APIResource(BaseView):
             >>> qb_transactions = Resource("qb", "TransactionList", **kwargs)
             >>> qb_transactions.get()
         """
-        if _id:
-            self.resource.id = _id
+        kwargs["headers"] = self.get_headers(**kwargs)
+        kwargs["params"] = {**self.params, **kwargs.get("params", {})}
 
-        _id = self.resource.id
+        if _id:
+            self.id = _id
+
+        _id = self.id
         json = get_json(self.api_url, self.client, **kwargs)
 
         if json["ok"]:
@@ -476,18 +526,15 @@ class APIResource(BaseView):
             except KeyError:
                 result = []
 
-            _result = list(
-                self.processor(
-                    listize(result), self.resource.fields, prefix=self.prefix
-                )
-            )
+            args = (listize(result), self.resource.fields)
+            _result = list(self.processor(*args, prefix=self.prefix))
             result = self.filter_result(*_result)
         else:
             result = []
 
         if self.error_msg:
             logger.error(self.error_msg)
-            json["message"] = f"{self.error_msg}: {self.url}"
+            json["message"] = f"{self.error_msg}: {self.api_url}"
 
         json["result"] = result
         return json
@@ -510,8 +557,9 @@ class APIResource(BaseView):
             >>> qb_transactions = Resource("qb", "TransactionList", **kwargs)
             >>> qb_transactions.get()
         """
-        json = get_json(params=self.params, **kwargs)
-        if self.resource.use_default and not self.resource.id:
+        json = self.get_json(**kwargs)
+
+        if self.resource.use_default and not self.id:
             json["result"] = self._extract_model(**json)
 
         return jsonify(**json)

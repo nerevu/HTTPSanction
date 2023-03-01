@@ -228,6 +228,9 @@ def augment_resource(provider: Provider, resource: Resource):
         parent = get_resource(*provider.resources, resource_id=resource.parent)
         resource.auth_id = resource.auth_id or parent.auth_id
         resource.resource_path = resource.resource_path or parent.resource_path
+        resource.id_field = resource.id_field or parent.id_field
+        resource.rid = resource.rid or parent.rid
+        resource.srid = resource.srid or parent.srid
         parent_result_key = parent.result_key
         # resource.parent = parent
     else:
@@ -241,6 +244,10 @@ def augment_resource(provider: Provider, resource: Resource):
     resource.resource_path = resource.resource_path or resource.resource_id
     resource.result_key = result_key
     resource.pos = resource.pos or 0
+
+    # TODO: read this from config
+    resource.days = resource.days or 90
+    resource.fields = resource.fields or []
     resource.datefmt = resource.datefmt or "%Y-%m-%d"
 
     if resource.end:
@@ -252,7 +259,15 @@ def augment_resource(provider: Provider, resource: Resource):
     kwargs = authentication.attrs or {}
     kwargs.update(resource.attrs or {})
 
-    for k, v in asdict(resource).items():
+    resourceAsdict = asdict(resource)
+
+    for k, v in resourceAsdict.items():
+        if v and v != (replaced := replace_envs(v)):
+            set_auth_attr(resource, k, replaced)
+
+    kwargs.update({"rid": resource.rid, "srid": resource.srid})
+
+    for k, v in resourceAsdict.items():
         if v and v != (formatted := _format(v, **kwargs)):
             set_resource_attr(resource, k, formatted)
 

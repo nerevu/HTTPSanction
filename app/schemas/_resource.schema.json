@@ -62,6 +62,28 @@
       "type": "string",
       "default": ""
     },
+    "rid": {
+      "description": "item ID of the resource you want to fetch",
+      "type": ["integer", "string"],
+      "default": "",
+      "examples": [
+        "1",
+        7757869450,
+        "50012ffa",
+        "cee97338-c623-46ad-9e41-c5d2610075c7"
+      ]
+    },
+    "srid": {
+      "description": "item ID of the sub-resource you want to fetch",
+      "type": ["integer", "string"],
+      "default": "",
+      "examples": [
+        "1",
+        7757869450,
+        "50012ffa",
+        "cee97338-c623-46ad-9e41-c5d2610075c7"
+      ]
+    },
     "idField": {
       "description": "Field representing item ID of the resource (defaults to first field that equals `id` or ends with either `_id` or `Id`)",
       "type": "string",
@@ -147,7 +169,7 @@
     "days": {
       "description": "The the number of days to fetch data for",
       "type": "number",
-      "default": 0
+      "default": 90
     },
     "fields": {
       "description": "Resource fields to save from the parsed API response",

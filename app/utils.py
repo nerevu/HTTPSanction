@@ -616,8 +616,11 @@ def parse_ts(date_str):
 
 
 def parse_tuple(key, value, prefix=None):
-    if value.startswith("/Date("):
-        value = parse_ts(value)
+    try:
+        if value.startswith("/Date("):
+            value = parse_ts(value)
+    except AttributeError:
+        pass
 
     return (key, value)
 

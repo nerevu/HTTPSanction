@@ -34,26 +34,30 @@
     },
     {
       "resourceId": "emailLists",
-      "resourcePath": "lists/{listPrefix}@{domain}",
+      "resourcePath": "lists/pages",
       "authId": "account",
       "idField": "address",
-      "attrs": {
-        "listPrefix": "$MAILGUN_LIST_PREFIX",
-        "mid": "$MAILGUN_MEMBER_ID"
-      },
-      "resultKey": "list"
+      "resultKey": "0.items"
     },
     {
-      "resourceId": "emailListMember",
-      "resourcePath": "lists/{listPrefix}@{domain}/members/{mid}",
+      "resourceId": "emailList",
+      "rid": "$MAILGUN_LIST_PREFIX",
+      "resourcePath": "lists/{rid}@{domain}",
       "parent": "emailLists",
-      "resultKey": "items"
+      "resultKey": "list"
     },
     {
       "resourceId": "emailListMembers",
-      "resourcePath": "lists/{listPrefix}@{domain}/members",
-      "parent": "emailLists",
-      "resultKey": "list"
+      "rid": "$MAILGUN_LIST_PREFIX",
+      "resourcePath": "lists/{rid}@{domain}/members/pages",
+      "parent": "emailLists"
+    },
+    {
+      "resourceId": "emailListMember",
+      "srid": "$MAILGUN_MEMBER_ID",
+      "resourcePath": "lists/{rid}@{domain}/members",
+      "parent": "emailList",
+      "resultKey": "0.member"
     },
     {
       "resourceId": "Email",

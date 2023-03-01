@@ -18,7 +18,7 @@
         "end": "dateBeforeUtc"
       },
       "extractions": {
-        "tenant_id": "result[0].tenantId"
+        "tenant_id": "[0].tenantId"
       },
       "scope": [
         "projects",
@@ -166,11 +166,9 @@
     },
     {
       "resourceId": "online_invoices",
-      "resourcePath": "Invoices/{iid}/OnlineInvoice",
+      "rid": "$XERO_INVOICE_ID",
+      "resourcePath": "Invoices/{rid}/OnlineInvoice",
       "authId": "api",
-      "attrs": {
-        "iid": ""
-      },
       "idField": "OnlineInvoiceUrl",
       "resultKey": "OnlineInvoices"
     },
@@ -204,10 +202,8 @@
     },
     {
       "resourceId": "project_tasks",
-      "resourcePath": "projects/{pid}/tasks",
-      "attrs": {
-        "pid": ""
-      },
+      "rid": "$XERO_PROJECT_ID",
+      "resourcePath": "projects/{rid}/tasks",
       "authId": "project",
       "fields": [
         "taskId",
@@ -218,9 +214,6 @@
       ],
       "idField": "taskId",
       "resultKey": "items",
-      "attrs": {
-        "pid": ""
-      },
       "methods": [
         "GET",
         "POST"
@@ -228,12 +221,12 @@
     },
     {
       "resourceId": "project_time",
-      "resourcePath": "projects/{pid}/time",
+      "rid": "$XERO_PROJECT_ID",
+      "resourcePath": "projects/{rid}/time",
       "authId": "project",
       "idField": "timeEntryId",
       "resultKey": "items",
       "attrs": {
-        "pid": "",
         "event_pos": 0,
         "event_id": ""
       },
