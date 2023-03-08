@@ -1,5 +1,5 @@
 {
-  "name": "HTTPSanction",
+  "name": "http-sanction",
   "version": "0.35.0",
   "description": " A universal API authentication, integration, and verification Python library ",
   "scripts": {},
