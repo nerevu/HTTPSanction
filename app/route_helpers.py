@@ -6,7 +6,9 @@
     Provides route helper functions
 """
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import asdict
+from datetime import date, datetime as dt
 from os import getenv, path as p
 
 import pygogo as gogo
@@ -14,7 +16,21 @@ import pygogo as gogo
 from dotenv import load_dotenv
 
 from app.helpers import flask_formatter as formatter, toposort
-from app.providers import Authentication, Provider
+
+try:
+    from app.providers import (
+        Authentication,
+        AuthenticationHeaders,
+        HeadlessElement,
+        MethodMap,
+        ParamMap,
+        Provider,
+        Resource,
+        StatusResourceHeaders,
+    )
+except ImportError:
+    Authentication = AuthenticationHeaders = HeadlessElement = None
+    MethodMap = ParamMap = Provider = Resource = StatusResourceHeaders = None
 
 logger = gogo.Gogo(
     __name__, low_formatter=formatter, high_formatter=formatter, monolog=True
@@ -27,16 +43,18 @@ PARENT_DIR = p.abspath(p.dirname(p.dirname(__file__)))
 load_dotenv(p.join(PARENT_DIR, ".env"), override=True)
 
 
-def getattrs(obj, *attrs):
+def get_attrs(obj, *attrs):
     attr = getattr(obj, attrs[0])
 
     if len(attrs) > 1:
-        attr = getattrs(attr, *attrs[1:])
+        attr = get_attrs(attr, *attrs[1:])
 
     return attr
 
 
-def get_authentication(*args: Authentication, auth_id: str = None) -> Authentication:
+def get_authentication(
+    *args: Sequence[Authentication], auth_id: str = None
+) -> Authentication:
     authentication = None
 
     if auth_id:
@@ -58,6 +76,27 @@ def get_authentication(*args: Authentication, auth_id: str = None) -> Authentica
             raise AssertionError("No auths found in provider!")
 
     return authentication
+
+
+def get_resource(*args: Sequence[Resource], resource_id: str = None) -> Resource:
+    resource = None
+
+    for resource in args:
+        if resource.resource_id == resource_id:
+            break
+
+    return resource
+
+
+def get_status_resource(provider):
+    resource = None
+
+    if provider and provider.resources:
+        resource = get_resource(
+            *provider.resources, resource_id=provider.status_resource_id
+        )
+
+    return resource
 
 
 def is_listlike(item):
@@ -88,23 +127,60 @@ def replace_envs(value):
     return replaced
 
 
-def _format(value, **kwargs):
+def _format(value, extractions=None, **kwargs):
+    extractions = extractions or {}
     formatted = value
 
     try:
-        formatted = value.format(**kwargs)
+        extraction = any(k in value for k in extractions)
+    except TypeError:
+        extraction = False
+
+    try:
+        formatted = value if extraction else value.format(**kwargs)
     except AttributeError:
         try:
-            formatted = {k: _format(v, **kwargs) for k, v in value.items()}
+            formatted = {
+                k: _format(v, extractions=extractions, **kwargs)
+                for k, v in value.items()
+            }
         except AttributeError:
-            if is_listlike(formatted):
-                formatted = [_format(v) for v in value]
+            if is_listlike(value):
+                formatted = [
+                    _format(v, extractions=extractions, **kwargs) for v in value
+                ]
 
     return formatted
 
 
+def set_auth_attr(authentication: Authentication, key: str, value):
+    converters = {
+        "headers": AuthenticationHeaders.from_dict,
+        "method_map": MethodMap.from_dict,
+        "param_map": ParamMap.from_dict,
+    }
+
+    if from_dict := converters.get(key):
+        value = from_dict(value)
+    elif key == "headless_elements":
+        value = [HeadlessElement.from_dict(element) for element in value]
+
+    setattr(authentication, key, value)
+
+
+def set_resource_attr(resource: Resource, key: str, value):
+    if key == "headers":
+        value = StatusResourceHeaders.from_dict(value)
+
+    setattr(resource, key, value)
+
+
 def augment_auth(provider: Provider, authentication: Authentication):
+    if authentication.augmented:
+        return
+
     authentication.attrs = authentication.attrs or {}
+    authentication.extractions = authentication.extractions or {}
     kwargs = {}
 
     if authentication.parent:
@@ -114,28 +190,89 @@ def augment_auth(provider: Provider, authentication: Authentication):
 
         for k, v in parentAsdict.items():
             if v and not getattr(authentication, k):
-                setattr(authentication, k, v)
+                set_auth_attr(authentication, k, v)
 
         parent_attrs = parent.attrs or {}
+        parent_extractions = parent.extractions or {}
         [authentication.attrs.setdefault(k, v) for k, v in parent_attrs.items()]
+        [
+            authentication.extractions.setdefault(k, v)
+            for k, v in parent_extractions.items()
+        ]
+
+    authentication.data_key = authentication.data_key or "json"
+    authentication.param_map = authentication.param_map or ParamMap.from_dict({})
+    authAsdict = asdict(authentication)
+    kwargs.update(authAsdict)
+    kwargs.update(authentication.attrs)
+
+    for k, v in authAsdict.items():
+        if v and v != (replaced := replace_envs(v)):
+            set_auth_attr(authentication, k, replaced)
 
     authAsdict = asdict(authentication)
     kwargs.update(authAsdict)
     kwargs.update(authentication.attrs)
 
     for k, v in authAsdict.items():
-        if v:
-            replaced = replace_envs(v)
-            setattr(authentication, k, replaced)
+        if v and v != (formatted := _format(v, **kwargs)):
+            set_auth_attr(authentication, k, formatted)
 
-    authAsdict = asdict(authentication)
-    kwargs.update(authAsdict)
-    kwargs.update(authentication.attrs)
+    authentication.augmented = True
 
-    for k, v in authAsdict.items():
-        if v:
-            formatted = _format(v, **kwargs)
-            setattr(authentication, k, formatted)
+
+def augment_resource(provider: Provider, resource: Resource):
+    _resource = f"{provider.prefix}/{resource.resource_id}"
+
+    if resource.parent:
+        parent = get_resource(*provider.resources, resource_id=resource.parent)
+        resource.auth_id = resource.auth_id or parent.auth_id
+        resource.resource_path = resource.resource_path or parent.resource_path
+        resource.id_field = resource.id_field or parent.id_field
+        resource.rid = resource.rid or parent.rid
+        resource.srid = resource.srid or parent.srid
+        parent_result_key = parent.result_key
+        # resource.parent = parent
+    else:
+        parent_result_key = ""
+
+    if resource.result_key:
+        result_key = f"result.{resource.result_key}"
+    else:
+        result_key = parent_result_key or "result"
+
+    resource.resource_path = resource.resource_path or resource.resource_id
+    resource.result_key = result_key
+    resource.pos = resource.pos or 0
+
+    # TODO: read this from config
+    resource.days = resource.days or 90
+    resource.fields = resource.fields or []
+    resource.datefmt = resource.datefmt or "%Y-%m-%d"
+
+    if resource.end:
+        resource.end = dt.strptime(resource.end, resource.datefmt)
+    else:
+        resource.end = date.today()
+
+    authentication = get_authentication(*provider.auths, auth_id=resource.auth_id)
+    kwargs = authentication.attrs or {}
+    kwargs.update(resource.attrs or {})
+
+    resourceAsdict = asdict(resource)
+
+    for k, v in resourceAsdict.items():
+        if v and v != (replaced := replace_envs(v)):
+            set_auth_attr(resource, k, replaced)
+
+    kwargs.update({"rid": resource.rid, "srid": resource.srid})
+
+    for k, v in resourceAsdict.items():
+        if v and v != (formatted := _format(v, **kwargs)):
+            set_resource_attr(resource, k, formatted)
+
+    assert resource.auth_id, f"{_resource} is missing auth_id!"
+    assert resource.resource_path, f"{_resource} is missing resource_path!"
 
 
 def validate_providers(*args: Provider):
@@ -147,3 +284,52 @@ def validate_providers(*args: Provider):
             raise AssertionError(
                 f"The provider prefix `{prefix}` is specified {count} times!"
             )
+
+    for provider in args:
+        id_counts = Counter(resource.resource_id for resource in provider.resources)
+        most_common = id_counts.most_common(1)
+
+        if most_common[0][1] > 1:
+            for resource_id, count in most_common:
+                _path = f"{provider.prefix}/resources[?]/{resource_id}"
+                raise AssertionError(
+                    f"The resourceId {_path} is specified {count} times!"
+                )
+
+        id_counts = Counter(auth.auth_id for auth in provider.auths)
+        most_common = id_counts.most_common(1)
+
+        if most_common[0][1] > 1:
+            for auth_id, count in most_common:
+                _path = f"{provider.prefix}/auths[?]/{auth_id}"
+                raise AssertionError(f"The authId {_path} is specified {count} times!")
+
+
+def get_value(value, obj=None, **kwargs):
+    result = []
+
+    try:
+        _func = value.get("func")
+    except AttributeError:
+        _func = fargs = fkwargs = key = conditional = None
+    else:
+        fargs = value.get("args", [])
+        fkwargs = value.get("kwargs", [])
+        key = value.get("key")
+        conditional = value.get("conditional")
+        result = value.get("result")
+
+    if _func:
+        func = get_attrs(obj, *_func.split("."))
+        _args = (_format(a, **kwargs) for a in fargs)
+        _kwargs = {k: _format(v, **kwargs) for k, v in fkwargs}
+        _attr_value = func(*_args, **_kwargs)
+        attr_value = _attr_value[_format(key, **kwargs)] if key else _attr_value
+    elif conditional and _format(conditional, **kwargs):
+        attr_value = _format(result[0], **kwargs)
+    elif conditional:
+        attr_value = _format(result[1], **kwargs)
+    else:
+        attr_value = _format(value, **kwargs)
+
+    return attr_value

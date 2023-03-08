@@ -22,6 +22,14 @@
         "#xl-form-password"
       ]
     },
+    "findText": {
+      "description": "Text contained in the element",
+      "type": "string",
+      "default": "",
+      "examples": [
+        "#xl-form-password"
+      ]
+    },
     "action": {
       "description": "Action to perform on the element",
       "type": "string",
@@ -45,24 +53,58 @@
       ]
     }
   },
-  "required": [
-    "selector",
-    "description"
-  ],
-  "dependencies": {
-    "content": {
-      "not": {
-        "required": [
-          "prompt"
-        ]
-      }
+  "definitions": {
+    "selector": {
+      "required": [
+        "selector",
+        "description"
+      ]
+    },
+    "findText": {
+      "required": [
+        "findText",
+        "description"
+      ]
     },
     "prompt": {
-      "not": {
-        "required": [
-          "content"
-        ]
-      }
+      "required": [
+        "prompt"
+      ]
+    },
+    "content": {
+      "required": [
+        "content"
+      ]
+    },
+    "action": {
+      "required": [
+        "action"
+      ]
     }
-  }
+  },
+  "allOf": [
+    {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/selector"
+        },
+        {
+          "$ref": "#/definitions/findText"
+        }
+      ]
+    },
+    {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/prompt"
+        },
+        {
+          "$ref": "#/definitions/content"
+        },
+        {
+          "$ref": "#/definitions/action"
+        }
+      ]
+    }
+  ]
 }

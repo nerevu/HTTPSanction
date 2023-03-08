@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/methods.schema.json",
+  "title": "Resource",
+  "description": "HTTP methods this resource allows",
+  "type": "array",
+  "default": [],
+  "items": {
+    "type": "string",
+    "default": "get",
+    "pattern": "get|post|patch|put|delete|GET|POST|PATCH|PUT|DELETE"
+  }
+}

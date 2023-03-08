@@ -219,8 +219,13 @@ def parse_date(date_str):
 
 def toposort(*args, parent_key="parent", id_key="id", **kwargs):
     if args:
-        graph = {getattr(arg, id_key): {getattr(arg, parent_key)} for arg in args}
-        lookup = {getattr(arg, id_key): arg for arg in args}
+        try:
+            graph = {arg.get(id_key): {arg.get(parent_key)} for arg in args}
+        except AttributeError:
+            graph = {getattr(arg, id_key): {getattr(arg, parent_key)} for arg in args}
+            lookup = {getattr(arg, id_key): arg for arg in args}
+        else:
+            lookup = {arg.get(id_key): arg for arg in args}
     else:
         graph = {k: {v.get(parent_key)} for k, v in kwargs.items()}
         lookup = kwargs

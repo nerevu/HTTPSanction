@@ -1,19 +1,31 @@
 {
+  "$schema": "../schemas/provider.schema.json",
   "prefix": "timely",
   "auths": [
     {
+      "authId": "basic",
       "authType": "oauth2",
-      "apiBaseURL": "https://api.timelyapp.com/1.1/{accountId}",
+      "apiBaseURL": "https://api.timelyapp.com/1.1",
       "authorizationBaseURL": "https://api.timelyapp.com/1.1/oauth/authorize",
-      "documentationURL": "https://app.timelyapp.com/777870/oauth_applications",
+      "documentationURL": "https://app.timelyapp.com/{accountId}/oauth_applications",
       "tokenURL": "https://api.timelyapp.com/1.1/oauth/token",
       "clientId": "$TIMELY_CLIENT_ID",
       "clientSecret": "$TIMELY_SECRET",
       "username": "$TIMELY_USERNAME",
       "password": "$TIMELY_PASSWORD",
-      "attrs": {
-        "accountId": "$TIMELY_ACCOUNT_ID"
+      "singularize": true,
+      "methodMap": {
+        "patch": "PUT"
       },
+      "paramMap": {
+        "start": "since",
+        "end": "upto"
+      },
+      "attrs": {
+        "accountId": "$TIMELY_ACCOUNT_ID",
+        "singularize": true
+      },
+      "isDefault": true,
       "headlessElements": [
         {
           "selector": "//email",
@@ -45,6 +57,112 @@
           "description": "google submit",
           "action": "click"
         }
+      ]
+    },
+    {
+      "authId": "standard",
+      "apiBaseURL": "https://api.timelyapp.com/1.1/{accountId}",
+      "parent": "basic"
+    }
+  ],
+  "statusResourceId": "accounts",
+  "resources": [
+    {
+      "resourceId": "projects",
+      "authId": "standard",
+      "fields": [
+        "id",
+        "name",
+        "active",
+        "billable",
+        "client.id",
+        "client.name",
+        "budget"
+      ],
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "resourceId": "time",
+      "authId": "standard",
+      "resourcePath": "events",
+      "fields": [
+        "id",
+        "day",
+        "duration.total_minutes",
+        "label_ids",
+        "project.id",
+        "user.id",
+        "note",
+        "billed"
+      ],
+      "methods": [
+        "GET",
+        "PATCH"
+      ]
+    },
+    {
+      "resourceId": "ProjectTime",
+      "authId": "standard",
+      "rid": "$TIMELY_PROJECT_ID",
+      "resourcePath": "projects/{rid}/events",
+      "fields": [
+        "id",
+        "day",
+        "duration.total_minutes",
+        "label_ids",
+        "project.id",
+        "user.id",
+        "note",
+        "billed"
+      ],
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "resourceId": "ProjectTasks",
+      "authId": "standard",
+      "rid": "$TIMELY_PROJECT_ID",
+      "resultKey": "labels",
+      "resourcePath": "projects/{rid}",
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "resourceId": "tasks",
+      "authId": "standard",
+      "resourcePath": "labels",
+      "fields": [
+        "id",
+        "name",
+        "children"
+      ]
+    },
+    {
+      "resourceId": "users",
+      "authId": "standard",
+      "fields": [
+        "id",
+        "name"
+      ]
+    },
+    {
+      "resourceId": "accounts",
+      "authId": "basic"
+    },
+    {
+      "resourceId": "contacts",
+      "authId": "standard",
+      "resourcePath": "clients",
+      "fields": [
+        "id",
+        "name"
       ]
     }
   ]

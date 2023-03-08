@@ -4,14 +4,6 @@
   "title": "Authentication",
   "description": "API authentication",
   "type": "object",
-  "definitions": {
-    "header": {
-      "description": "An HTTP header",
-      "type": "object",
-      "default": {},
-      "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/attribute.schema.json"
-    }
-  },
   "additionalProperties": false,
   "properties": {
     "documentationURL": {
@@ -55,6 +47,14 @@
         "https://identity.xero.com/connect/token"
       ]
     },
+    "revokeUrl": {
+      "description": "API OAuth token revocation URL",
+      "type": "string",
+      "default": "",
+      "examples": [
+        "https://identity.xero.com/connect/token"
+      ]
+    },
     "redirectURI": {
       "description": "API OAuth flow callback entry point (defaults to `$PROVIDER_PREFIX-callback`",
       "type": "string",
@@ -75,10 +75,9 @@
       ]
     },
     "authType": {
-      "description": "Unique API authentication type",
+      "description": "The API authentication type",
       "type": "string",
       "default": "oauth2",
-      "uniqueItems": true,
       "pattern": "oauth1|oauth2|service|bearer|basic|custom"
     },
     "flowType": {
@@ -87,9 +86,14 @@
       "default": "web",
       "pattern": "web|backend|legacy|mobile"
     },
-    "flowEnum": {
+    "_flowEnum": {
       "description": "OAuth2 flow enum",
       "type": "integer",
+      "default": false
+    },
+    "_augmented": {
+      "description": "The authentication has been augmented.",
+      "type": "boolean",
       "default": false
     },
     "requiresBasicAuth": {
@@ -112,6 +116,27 @@
       "examples": [
         "$SECRET"
       ]
+    },
+    "personalAccessToken": {
+      "description": "The API key or personal access token",
+      "type": "string",
+      "default": "",
+      "examples": [
+        "$ACCESS_TOKEN"
+      ]
+    },
+    "extractions": {
+      "description": "Key/Value pairs where key -> Attribute to store the extracted path in, and value -> Path to extract from the json authentication result",
+      "type": "object",
+      "default": {},
+      "examples": [
+        {
+          "tenant_id": "result[0].tenantId"
+        }
+      ],
+      "additionalProperties": {
+        "type": "string"
+      }
     },
     "username": {
       "description": "The application username",
@@ -162,47 +187,126 @@
       "type": "boolean",
       "default": false
     },
+    "apiExt": {
+      "description": "Extension to place  at the end of API urls",
+      "type": "string",
+      "default": "",
+      "examples": [
+        "json"
+      ]
+    },
+    "singularize": {
+      "description": "Wrap data in a singularized resource name for POST/PATCH requests",
+      "type": "boolean",
+      "default": false
+    },
+    "dataKey": {
+      "description": "Key to assign data to for POST/PATCH requests",
+      "type": "string",
+      "default": "json"
+    },
+    "resultKey": {
+      "description": "The path to extract from the parsed API response (should return a list of items)",
+      "type": "string",
+      "examples": [
+        "items"
+      ]
+    },
     "headers": {
       "description": "HTTP headers to include with requests (case sensitive)",
       "type": "object",
       "default": {},
+      "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/headers.schema.json"
+    },
+    "methodMap": {
+      "description": "Maps standard HTTP methods to API specific methods (case sensitive)",
+      "type": "object",
+      "default": {},
       "additionalProperties": false,
       "properties": {
-        "ALL": {
-          "description": "Include in all requests",
-          "type": "object",
-          "default": {},
-          "$ref": "#/definitions/header"
+        "get": {
+          "description": "Map GET requests",
+          "type": "string",
+          "default": "GET",
+          "pattern": "get|post|patch|put|delete|GET|POST|PATCH|PUT|DELETE",
+          "examples": [
+            "POST"
+          ]
         },
-        "GET": {
-          "description": "Include only in GET requests",
-          "type": "object",
-          "default": {},
-          "$ref": "#/definitions/header"
+        "post": {
+          "description": "Map POST requests",
+          "type": "string",
+          "default": "POST",
+          "pattern": "get|post|patch|put|delete|GET|POST|PATCH|PUT|DELETE",
+          "examples": [
+            "GET"
+          ]
         },
-        "POST": {
-          "description": "Include only in POST requests",
-          "type": "object",
-          "default": {},
-          "$ref": "#/definitions/header"
+        "put": {
+          "description": "Map PUT requests",
+          "type": "string",
+          "default": "PUT",
+          "pattern": "get|post|patch|put|delete|GET|POST|PATCH|PUT|DELETE",
+          "examples": [
+            "POST"
+          ]
         },
-        "PUT": {
-          "description": "Include only in PUT requests",
-          "type": "object",
-          "default": {},
-          "$ref": "#/definitions/header"
+        "patch": {
+          "description": "Map PATCH requests",
+          "type": "string",
+          "default": "PATCH",
+          "pattern": "get|post|patch|put|delete|GET|POST|PATCH|PUT|DELETE",
+          "examples": [
+            "POST"
+          ]
         },
-        "PATCH": {
-          "description": "Include only in PATCH requests",
-          "type": "object",
-          "default": {},
-          "$ref": "#/definitions/header"
+        "delete": {
+          "description": "Map DELETE requests",
+          "type": "string",
+          "default": "DELETE",
+          "pattern": "get|post|patch|put|delete|GET|POST|PATCH|PUT|DELETE",
+          "examples": [
+            "POST"
+          ]
+        }
+      }
+    },
+    "paramMap": {
+      "description": "Maps standard parameters to API specific parameters",
+      "type": "object",
+      "default": {},
+      "properties": {
+        "id": {
+          "description": "",
+          "type": "string",
+          "default": "",
+          "examples": [
+            ""
+          ]
         },
-        "DELETE": {
-          "description": "Include only in DELETE requests",
-          "type": "object",
-          "default": {},
-          "$ref": "#/definitions/header"
+        "fields": {
+          "description": "",
+          "type": "string",
+          "default": "",
+          "examples": [
+            ""
+          ]
+        },
+        "start": {
+          "description": "The start date",
+          "type": "string",
+          "default": "",
+          "examples": [
+            "dateAfterUtc"
+          ]
+        },
+        "end": {
+          "description": "The end date",
+          "type": "string",
+          "default": "",
+          "examples": [
+            "dateBeforeUtc"
+          ]
         }
       }
     },
@@ -211,7 +315,7 @@
       "type": "array",
       "default": [],
       "items": {
-        "$ref": "headless.schema.json"
+        "$ref": "https://raw.githubusercontent.com/nerevu/HTTPSanction/features/app/schemas/headless.schema.json"
       }
     },
     "parent": {
@@ -226,6 +330,11 @@
       "description": "Use this authentication object if one isn't provided",
       "type": "boolean",
       "default": false
+    },
+    "example": {
+      "description": "An example API request",
+      "type": "string",
+      "default": ""
     }
   },
   "anyOf": [

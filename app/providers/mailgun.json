@@ -1,4 +1,5 @@
 {
+  "$schema": "../schemas/provider.schema.json",
   "prefix": "mailgun",
   "auths": [
     {
@@ -7,6 +8,7 @@
       "documentationURL": "https://documentation.mailgun.com/en/latest/api_reference.html",
       "username": "api",
       "password": "$MAILGUN_API_KEY",
+      "dataKey": "data",
       "attrs": {
         "domain": "$MAILGUN_DOMAIN"
       }
@@ -21,6 +23,54 @@
       "parent": "base",
       "isDefault": true,
       "apiBaseURL": "https://api.mailgun.net/v3"
+    }
+  ],
+  "statusResourceId": "domains",
+  "resources": [
+    {
+      "resourceId": "domains",
+      "authId": "account",
+      "resultKey": "0.items"
+    },
+    {
+      "resourceId": "emailLists",
+      "resourcePath": "lists/pages",
+      "authId": "account",
+      "idField": "address",
+      "resultKey": "0.items"
+    },
+    {
+      "resourceId": "emailList",
+      "rid": "$MAILGUN_LIST_PREFIX",
+      "resourcePath": "lists/{rid}@{domain}",
+      "parent": "emailLists",
+      "resultKey": "list"
+    },
+    {
+      "resourceId": "emailListMembers",
+      "rid": "$MAILGUN_LIST_PREFIX",
+      "resourcePath": "lists/{rid}@{domain}/members/pages",
+      "parent": "emailLists"
+    },
+    {
+      "resourceId": "emailListMember",
+      "srid": "$MAILGUN_MEMBER_ID",
+      "resourcePath": "lists/{rid}@{domain}/members",
+      "parent": "emailList",
+      "resultKey": "0.member"
+    },
+    {
+      "resourceId": "Email",
+      "resourcePath": "messages",
+      "authId": "account",
+      "idField": "MessageID",
+      "attrs": {
+        "admin_email": "$ADMIN_EMAIL",
+        "admin_name": "$ADMIN_NAME"
+      },
+      "methods": [
+        "POST"
+      ]
     }
   ]
 }

@@ -1,16 +1,25 @@
 {
+  "$schema": "../schemas/provider.schema.json",
   "prefix": "xero",
   "auths": [
     {
-      "authType": "oauth2",
-      "apiBaseURL": "https://api.xero.com",
+      "authId": "base",
       "documentationURL": "https://developer.xero.com/documentation/getting-started-guide",
+      "authType": "oauth2",
       "authorizationBaseURL": "https://login.xero.com/identity/connect/authorize",
       "tokenURL": "https://identity.xero.com/connect/token",
+      "refreshURL": "https://identity.xero.com/connect/token",
       "clientId": "$XERO_CLIENT_ID",
       "clientSecret": "$XERO_SECRET",
       "username": "$XERO_USERNAME",
       "password": "$XERO_PASSWORD",
+      "paramMap": {
+        "start": "dateAfterUtc",
+        "end": "dateBeforeUtc"
+      },
+      "extractions": {
+        "tenant_id": "[0].tenantId"
+      },
       "scope": [
         "projects",
         "offline_access",
@@ -62,6 +71,168 @@
           "description": "xero select org",
           "action": "click"
         }
+      ]
+    },
+    {
+      "authId": "simple",
+      "parent": "base",
+      "isDefault": true,
+      "apiBaseURL": "https://api.xero.com"
+    },
+    {
+      "authId": "api",
+      "parent": "base",
+      "apiBaseURL": "https://api.xero.com/api.xro/2.0",
+      "headers": {
+        "all": {
+          "Xero-tenant-id": "{tenant_id}"
+        }
+      }
+    },
+    {
+      "authId": "project",
+      "parent": "base",
+      "apiBaseURL": "https://api.xero.com/projects.xro/2.0",
+      "headers": {
+        "all": {
+          "Xero-tenant-id": "{tenant_id}"
+        }
+      }
+    }
+  ],
+  "statusResourceId": "connections",
+  "resources": [
+    {
+      "resourceId": "connections",
+      "authId": "simple"
+    },
+    {
+      "resourceId": "projects",
+      "authId": "project",
+      "fields": [
+        "projectId",
+        "name",
+        "status"
+      ],
+      "idField": "projectId",
+      "resultKey": "items",
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "resourceId": "users",
+      "resourcePath": "projectsusers",
+      "authId": "project",
+      "fields": [
+        "userId",
+        "name"
+      ],
+      "idField": "userId",
+      "resultKey": "items"
+    },
+    {
+      "resourceId": "contacts",
+      "resourcePath": "Contacts",
+      "authId": "api",
+      "fields": [
+        "ContactID",
+        "Name",
+        "FirstName",
+        "LastName"
+      ],
+      "idField": "ContactID",
+      "resultKey": "Contacts"
+    },
+    {
+      "resourceId": "payments",
+      "resourcePath": "Payments",
+      "authId": "api",
+      "idField": "PaymentID",
+      "resultKey": "Payments"
+    },
+    {
+      "resourceId": "invoices",
+      "resourcePath": "Invoices",
+      "authId": "api",
+      "idField": "InvoiceID",
+      "resultKey": "Invoices",
+      "nameField": "InvoiceNumber",
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "resourceId": "online_invoices",
+      "rid": "$XERO_INVOICE_ID",
+      "resourcePath": "Invoices/{rid}/OnlineInvoice",
+      "authId": "api",
+      "idField": "OnlineInvoiceUrl",
+      "resultKey": "OnlineInvoices"
+    },
+    {
+      "resourceId": "linked_transactions",
+      "resourcePath": "LinkedTransactions",
+      "authId": "api",
+      "idField": "LinkedTransactionID",
+      "resultKey": "LinkedTransactions",
+      "nameField": "LinkedTransactionID",
+      "filter": {
+        "field": "Status",
+        "value": "VOIDED",
+        "comparator": "NOT"
+      }
+    },
+    {
+      "resourceId": "inventory",
+      "resourcePath": "Items",
+      "authId": "api",
+      "fields": [
+        "ItemID",
+        "Name",
+        "Code",
+        "Description",
+        "SalesDetails"
+      ],
+      "idField": "ItemID",
+      "resultKey": "Items",
+      "nameField": "Name"
+    },
+    {
+      "resourceId": "project_tasks",
+      "rid": "$XERO_PROJECT_ID",
+      "resourcePath": "projects/{rid}/tasks",
+      "authId": "project",
+      "fields": [
+        "taskId",
+        "name",
+        "status",
+        "rate.value",
+        "projectId"
+      ],
+      "idField": "taskId",
+      "resultKey": "items",
+      "methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "resourceId": "project_time",
+      "rid": "$XERO_PROJECT_ID",
+      "resourcePath": "projects/{rid}/time",
+      "authId": "project",
+      "idField": "timeEntryId",
+      "resultKey": "items",
+      "attrs": {
+        "event_pos": 0,
+        "event_id": ""
+      },
+      "methods": [
+        "GET",
+        "POST"
       ]
     }
   ]

@@ -1,14 +1,46 @@
 {
+  "$schema": "../schemas/provider.schema.json",
   "prefix": "airtable",
   "auths": [
     {
+      "authId": "base",
       "authType": "bearer",
-      "apiBaseURL": "https://api.airtable.com/v0/{baseId}",
-      "documentationURL": "https://airtable.com/{baseId}/api/docs",
+      "documentationURL": "https://airtable.com/developers/web/api/oauth-reference",
+      "personalAccessToken": "$AIRTABLE_PAT",
       "attrs": {
-        "token": "$AIRTABLE_API_KEY",
         "baseId": "$AIRTABLE_BASE_ID"
       }
+    },
+    {
+      "authId": "public",
+      "parent": "base",
+      "apiBaseURL": "https://api.airtable.com/v0/{baseId}",
+      "params": {
+        "maxRecords": 2048,
+        "pageSize": 100,
+        "offset": null,
+        "view": null
+      }
+    },
+    {
+      "authId": "meta",
+      "parent": "base",
+      "apiBaseURL": "https://api.airtable.com/v0/meta",
+      "isDefault": true
+    }
+  ],
+  "statusResourceId": "bases",
+  "resources": [
+    {
+      "resourceId": "records",
+      "authId": "public",
+      "resourcePath": "$AIRTABLE_TABLE_ID",
+      "resultKey": "records"
+    },
+    {
+      "resourceId": "bases",
+      "authId": "meta",
+      "resultKey": "bases"
     }
   ]
 }

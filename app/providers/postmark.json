@@ -1,15 +1,24 @@
 {
+  "$schema": "../schemas/provider.schema.json",
   "prefix": "postmark",
   "auths": [
     {
       "authId": "base",
       "authType": "custom",
       "documentationURL": "https://postmarkapp.com/developer/api/overview",
-      "apiBaseURL": "https://api.postmarkapp.com",
+      "apiBaseURL": "https://api.postmarkapp.com"
+    },
+    {
+      "authId": "server",
+      "parent": "base",
       "headers": {
-        "ALL": {
-          "Content-Type": "application/json"
+        "all": {
+          "X-Postmark-Server-Token": "$POSTMARK_SERVER_TOKEN"
         }
+      },
+      "params": {
+        "count": 100,
+        "offset": 0
       }
     },
     {
@@ -17,18 +26,47 @@
       "parent": "base",
       "isDefault": true,
       "headers": {
-        "ALL": {
+        "all": {
           "X-Postmark-Account-Token": "$POSTMARK_ACCOUNT_TOKEN"
         }
       }
+    }
+  ],
+  "statusResourceId": "domains",
+  "resources": [
+    {
+      "resourceId": "domains",
+      "authId": "account",
+      "resultKey": "Domains",
+      "idField": "ID",
+      "nameField": "Name",
+      "params": {
+        "count": 10,
+        "offset": 0
+      }
     },
     {
+      "resourceId": "templates",
       "authId": "server",
-      "parent": "base",
-      "headers": {
-        "ALL": {
-          "X-Postmark-Server-Token": "$POSTMARK_SERVER_TOKEN"
-        }
+      "resultKey": "Templates",
+      "idField": "TemplateId",
+      "nameField": "Name"
+    },
+    {
+      "resourceId": "email",
+      "authId": "account",
+      "idField": "MessageID",
+      "methods": [
+        "POST"
+      ],
+      "nameField": "To",
+      "attrs": {
+        "template_id": null,
+        "admin_email": "$ADMIN_EMAIL",
+        "admin_name": "$ADMIN_NAME",
+        "sender_email": "$ADMIN_EMAIL",
+        "sender_name": "$ADMIN_NAME",
+        "sender": "{sender_name} <{sender_email}>"
       }
     }
   ]

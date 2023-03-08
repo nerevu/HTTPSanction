@@ -1,10 +1,15 @@
 {
+  "$schema": "../schemas/provider.schema.json",
   "prefix": "keycdn",
   "auths": [
     {
       "authId": "base",
       "apiBaseURL": "https://api.keycdn.com",
-      "documentationURL": "https://www.keycdn.com/api#overview"
+      "documentationURL": "https://www.keycdn.com/api#overview",
+      "apiExt": "json",
+      "methodMap": {
+        "patch": "PUT"
+      }
     },
     {
       "authId": "basic",
@@ -18,11 +23,47 @@
       "authType": "custom",
       "parent": "base",
       "headers": {
-        "ALL": {
+        "all": {
           "Content-Type": "application/json",
           "X-Auth-Token": "$KEYCDN_API_KEY"
         }
       }
+    }
+  ],
+  "statusResourceId": "zones",
+  "resources": [
+    {
+      "resourceId": "zones",
+      "authId": "basic",
+      "methods": [
+        "GET",
+        "PATCH",
+        "POST",
+        "DELETE"
+      ],
+      "resultKey": "data.zones"
+    },
+    {
+      "resourceId": "ZoneCache",
+      "rid": "$KEYCDN_ZONE_ID",
+      "authId": "basic",
+      "resourcePath": "zones/purge/{rid}",
+      "methods": [
+        "GET",
+        "DELETE",
+        "POST"
+      ],
+      "useDefault": true
+    },
+    {
+      "resourceId": "ZoneURLCache",
+      "rid": "$KEYCDN_ZONE_ID",
+      "example": "DELETE https://api.keycdn.com/zones/purgeurl/209797 --data '{{\"urls\":[\"examplepull-hexid.kxcdn.com/css/style.css\"]}}'",
+      "authId": "basic",
+      "resourcePath": "zones/purgeurl/{rid}",
+      "methods": [
+        "DELETE"
+      ]
     }
   ]
 }
