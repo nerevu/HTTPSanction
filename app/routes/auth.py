@@ -33,7 +33,7 @@ from app.authclient import (
 )
 from app.helpers import flask_formatter as formatter, get_verbosity
 from app.providers import Authentication
-from app.route_helpers import get_status_resource, _format
+from app.route_helpers import _format, get_status_resource
 from app.routes import PatchedMethodView
 from app.utils import extract_field, extract_fields, jsonify, parse_item
 
@@ -217,7 +217,11 @@ class BaseView(PatchedMethodView):
         _headers = {**HEADERS, **auth_headers, **resource_headers, **headers}
 
         for k, v in _headers.items():
-            attrs = {k.replace(f"{self.prefix}_", ""): v for k, v in session.items() if k.startswith(self.prefix)}
+            attrs = {
+                k.replace(f"{self.prefix}_", ""): v
+                for k, v in session.items()
+                if k.startswith(self.prefix)
+            }
             attrs.update(self.client.attrs)
 
             if v and v != (formatted := _format(v, **attrs)):

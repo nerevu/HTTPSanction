@@ -64,7 +64,10 @@
     },
     "rid": {
       "description": "item ID of the resource you want to fetch",
-      "type": ["integer", "string"],
+      "type": [
+        "integer",
+        "string"
+      ],
       "default": "",
       "examples": [
         "1",
@@ -75,7 +78,10 @@
     },
     "srid": {
       "description": "item ID of the sub-resource you want to fetch",
-      "type": ["integer", "string"],
+      "type": [
+        "integer",
+        "string"
+      ],
       "default": "",
       "examples": [
         "1",
